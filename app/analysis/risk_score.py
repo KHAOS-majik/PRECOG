@@ -243,7 +243,7 @@ def _natural_language(npa, score, components, top_factor):
 
     active = [(k, v) for k, v in sorted(components.items(), key=lambda x: -x[1]) if v > 15]
     if not active:
-        return f"NPA {npa} risk is {level} ({score}/100) with no strongly active signals."
+        return f"Area {npa} risk is {level} ({score}/100) with no strongly active signals."
 
     phrases = [factor_phrases.get(k, k) for k, _ in active[:3]]
     if len(phrases) == 1:
@@ -253,7 +253,7 @@ def _natural_language(npa, score, components, top_factor):
     else:
         detail = f"{phrases[0]}, {phrases[1]}, and {phrases[2]}"
 
-    return f"NPA {npa} risk is {level} ({score}/100): {detail}."
+    return f"Area {npa} risk is {level} ({score}/100): {detail}."
 
 
 def explain_npa_risk(npa):

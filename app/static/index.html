@@ -23,6 +23,25 @@
   .controls button.primary { background: #2563eb; border-color: #3b82f6; font-weight: 600; }
   .controls button.primary:hover { background: #1d4ed8; }
   .controls button.briefing { background: #059669; border-color: #10b981; font-weight: 600; }
+  .role-pill { display: inline-flex; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 2px; gap: 2px; }
+  .role-pill button { background: transparent; border: none; color: #64748b; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase; }
+  .role-pill button.active { background: #1e293b; color: #60a5fa; }
+  .home-section { display: none; flex-direction: column; gap: 10px; }
+  .home-section.active { display: flex; }
+  .hero-card { background: linear-gradient(135deg, #1e293b, #0f172a); border: 1px solid #334155; border-radius: 10px; padding: 14px; }
+  .hero-card .hero-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 4px; }
+  .hero-card .hero-value { font-size: 28px; font-weight: 800; color: #60a5fa; }
+  .hero-card .hero-sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+  .priority-item { background: #0f172a; border-left: 3px solid #ef4444; padding: 10px 12px; margin-bottom: 6px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+  .priority-item:hover { background: #1e293b; }
+  .priority-item .pri-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .priority-item .pri-name { font-size: 13px; font-weight: 700; color: #f1f5f9; }
+  .priority-item .pri-score { font-size: 18px; font-weight: 800; }
+  .priority-item .pri-why { font-size: 11px; color: #cbd5e1; line-height: 1.4; }
+  .priority-item.sev-high { border-left-color: #ef4444; }
+  .priority-item.sev-med { border-left-color: #f97316; }
+  .priority-item.sev-low { border-left-color: #eab308; }
+  .area-flash { stroke: #60a5fa; fill: #60a5fa; }
   .overflow { position: relative; }
   .overflow-menu { position: absolute; top: 100%; right: 0; margin-top: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px; display: none; z-index: 9000; min-width: 180px; }
   .overflow-menu.open { display: block; }
@@ -120,6 +139,12 @@
 </div>
 
 <div class="controls">
+  <div class="role-pill" id="rolePill">
+    <button data-role="sergeant" class="active" onclick="setRole('sergeant')">Sergeant</button>
+    <button data-role="resident" onclick="setRole('resident')">Resident</button>
+    <button data-role="chief" onclick="setRole('chief')">Chief</button>
+    <button data-role="detective" onclick="setRole('detective')">Detective</button>
+  </div>
   <div>
     <label>Time Range</label>
     <select id="daysBack" onchange="refresh()">
@@ -175,60 +200,112 @@
     <div id="alertsContainer"></div>
 
     <div class="tab-strip">
-      <button class="tab-btn active" onclick="switchMainTab('now')">Now</button>
+      <button class="tab-btn active" onclick="switchMainTab('home')">Home</button>
       <button class="tab-btn" onclick="switchMainTab('changes')">Changes</button>
       <button class="tab-btn" onclick="switchMainTab('where')">Where &amp; Why</button>
       <button class="tab-btn" onclick="switchMainTab('history')">Historical</button>
     </div>
 
-    <!-- ====== NOW ====== -->
-    <div class="tab-pane active" id="tab-now">
+    <!-- ====== HOME (role-specific) ====== -->
+    <div class="tab-pane active" id="tab-home">
 
-      <div class="card">
-        <h3>Overview</h3>
-        <div class="kpi-grid" id="kpis">
-          <div class="kpi"><div class="num" id="kpiTotal">--</div><div class="lbl" id="kpiTotalLabel">Incidents</div></div>
-          <div class="kpi"><div class="num" id="kpiDaily">--</div><div class="lbl">Daily Avg</div></div>
-          <div class="kpi"><div class="num" id="kpiClearance">--</div><div class="lbl">Clearance</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>Forecast <span class="badge badge-blue" id="modelBadge">ML</span></h3>
-        <div class="predict-explainer">ML forecast of daily counts over the next 14 days using temporal, weather, and lag features.</div>
-        <div class="kpi-grid" style="grid-template-columns: 1fr 1fr;">
-          <div class="kpi"><div class="num" id="kpiTrend">--</div><div class="lbl">Trend</div></div>
-          <div class="kpi"><div class="num" id="kpiForecastAvg">--</div><div class="lbl">Predicted Avg</div></div>
-        </div>
-        <div id="forecastDetail" style="margin-top:8px;"></div>
-        <details style="margin-top:8px;">
-          <summary style="font-size:11px;color:#64748b;cursor:pointer;">Model health</summary>
-          <div class="kpi-grid" style="grid-template-columns: 1fr 1fr 1fr;margin-top:6px;">
-            <div class="kpi"><div class="num" id="mhTrainR2" style="font-size:14px;">--</div><div class="lbl">Train R²</div></div>
-            <div class="kpi"><div class="num" id="mhTestR2" style="font-size:14px;">--</div><div class="lbl">Test R²</div></div>
-            <div class="kpi"><div class="num" id="mhCache" style="font-size:14px;">--</div><div class="lbl">Cache</div></div>
+      <!-- Sergeant home -->
+      <div class="home-section active" id="home-sergeant">
+        <div class="card">
+          <h3>Shift Deployment <span class="badge badge-blue" id="sergeantDivBadge">All divisions</span></h3>
+          <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+            <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Division</label>
+            <select id="divisionSelect" onchange="renderSergeantHome()" style="padding:4px 8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px;flex:1;">
+              <option value="">All divisions</option>
+            </select>
           </div>
-          <div id="mhFeatures" style="margin-top:6px;font-size:10px;color:#64748b;"></div>
-        </details>
+          <div class="predict-explainer">Top areas to patrol this shift. Rank combines forecast trend, recent anomalies, and emerging clusters.</div>
+          <div id="patrolPriorities" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="card">
+          <h3>Since Last Shift <span class="badge badge-red" id="sergeantNewBadge">0</span></h3>
+          <div class="predict-explainer">Statistical anomalies and new clusters detected in the last 24 hours.</div>
+          <div id="sergeantSinceLast" style="max-height:220px;overflow-y:auto;"></div>
+        </div>
+
+        <div class="card">
+          <h3>Warn Your Team <span class="badge badge-yellow" id="sergeantWarnBadge">0</span></h3>
+          <div class="predict-explainer">Events in the next 24 hours and escalation-risk locations to brief officers about.</div>
+          <div id="sergeantWarnings" style="max-height:260px;overflow-y:auto;"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>Highest Risk Areas <span class="badge badge-red" id="riskBadge">0</span></h3>
-        <div class="predict-explainer">Composite 0-100 risk per NPA. Weighs forecast trend, anomalies, emerging clusters, repeat victimization, 311 disorder, and recency. Click a row to zoom.</div>
-        <div id="riskAreas" style="max-height:280px;overflow-y:auto;"></div>
+      <!-- Resident home -->
+      <div class="home-section" id="home-resident">
+        <div class="card">
+          <h3>My Neighborhood</h3>
+          <div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;">
+            <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">Area</label>
+            <select id="residentAreaSelect" onchange="renderResidentHome()" style="padding:4px 8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px;flex:1;">
+              <option value="">Pick an area…</option>
+            </select>
+          </div>
+          <div id="residentHero"></div>
+        </div>
+        <div class="card" id="residentRecentCard" style="display:none;">
+          <h3>Recent Incidents</h3>
+          <div id="residentRecent" style="max-height:280px;overflow-y:auto;"></div>
+        </div>
+        <div class="card" id="residentEventsCard" style="display:none;">
+          <h3>Coming Up</h3>
+          <div id="residentEvents" style="max-height:200px;overflow-y:auto;"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>Anomaly Alerts <span class="badge badge-red" id="anomalyBadge">0</span></h3>
-        <div class="predict-explainer">NPAs whose recent daily counts are statistically unusual vs their own year-long baseline.</div>
-        <div id="anomalyList" style="max-height:220px;overflow-y:auto;"></div>
+      <!-- Chief home -->
+      <div class="home-section" id="home-chief">
+        <div class="card">
+          <h3>Division Overview</h3>
+          <div class="predict-explainer">Volume and week-over-week trend by patrol division for the selected period.</div>
+          <div id="chiefDivisions"></div>
+        </div>
+        <div class="card">
+          <h3>Rising Crime Types <span class="badge badge-red" id="chiefRisingBadge">0</span></h3>
+          <div class="predict-explainer">Types trending up vs the prior 2-week baseline.</div>
+          <div id="chiefRising" style="max-height:220px;overflow-y:auto;"></div>
+        </div>
+        <div class="card">
+          <h3>Clearance Health</h3>
+          <div class="predict-explainer">How well cases are being closed overall and by top type.</div>
+          <div id="chiefClearance"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>Upcoming Events <span class="badge badge-yellow" id="eventBadge">0</span></h3>
-        <div class="predict-explainer">Games, holidays, festivals, and school breaks in the next 14 days that historically shift crime patterns.</div>
-        <div id="upcomingEvents" style="max-height:200px;overflow-y:auto;"></div>
+      <!-- Detective home -->
+      <div class="home-section" id="home-detective">
+        <div class="card">
+          <h3>Active Patterns <span class="badge badge-yellow" id="detPatternBadge">0</span></h3>
+          <div class="predict-explainer">Recurring schedules at the same address and geographic drift of crime clusters.</div>
+          <div id="detPatterns" style="max-height:280px;overflow-y:auto;"></div>
+        </div>
+        <div class="card">
+          <h3>Escalation Risk <span class="badge badge-red" id="detEscBadge">0</span></h3>
+          <div class="predict-explainer">Locations where repeated property crimes may precede violent crime.</div>
+          <div id="detEscalation" style="max-height:260px;overflow-y:auto;"></div>
+        </div>
+        <div class="card">
+          <h3>MO Groupings</h3>
+          <div class="predict-explainer">Operationally similar incidents grouped by type, place, and time of week.</div>
+          <div id="detMO" style="max-height:260px;overflow-y:auto;"></div>
+        </div>
       </div>
+    </div>
+
+    <!-- hidden mount for legacy loader targets so load* functions keep working -->
+    <div style="display:none;" id="legacyMounts">
+      <span id="kpiTotal"></span><span id="kpiTotalLabel"></span><span id="kpiDaily"></span><span id="kpiClearance"></span>
+      <span id="kpiTrend"></span><span id="kpiForecastAvg"></span><span id="modelBadge"></span>
+      <span id="mhTrainR2"></span><span id="mhTestR2"></span><span id="mhCache"></span><span id="mhFeatures"></span>
+      <div id="forecastDetail"></div>
+      <div id="riskAreas"></div><span id="riskBadge"></span>
+      <div id="anomalyList"></div><span id="anomalyBadge"></span>
+      <div id="upcomingEvents"></div><span id="eventBadge"></span>
     </div>
 
     <!-- ====== CHANGES ====== -->
@@ -387,12 +464,53 @@ let riskLayer = L.layerGroup().addTo(map);
 let heatLayer = null;
 let trendChart = null;
 let NPA_NAMES = {};
+let AREA_CENTERS = {};
 let lastBriefing = null;
+let currentRole = (typeof localStorage !== 'undefined' && localStorage.getItem('precog_role')) || 'sergeant';
+let currentRiskData = [];
+let currentAnomalies = [];
+let currentEmerging = [];
+let currentUpcoming = [];
+let currentEscalation = null;
+let currentPatterns = null;
+let currentTypeForecast = [];
+
+function setRole(role) {
+  currentRole = role;
+  try { localStorage.setItem('precog_role', role); } catch(e) {}
+  document.querySelectorAll('.role-pill button').forEach(b => b.classList.toggle('active', b.dataset.role === role));
+  document.querySelectorAll('.home-section').forEach(s => s.classList.toggle('active', s.id === 'home-' + role));
+  renderCurrentHome();
+}
+
+function renderCurrentHome() {
+  if (currentRole === 'sergeant') renderSergeantHome();
+  else if (currentRole === 'resident') renderResidentHome();
+  else if (currentRole === 'chief') renderChiefHome();
+  else if (currentRole === 'detective') renderDetectiveHome();
+}
+
+function flashArea(lat, lon) {
+  if (lat == null || lon == null) return;
+  map.flyTo([lat, lon], 15, { duration: 0.8 });
+  const pulse = L.circleMarker([lat, lon], {
+    radius: 25, color: '#60a5fa', fillColor: '#60a5fa', fillOpacity: 0.35, weight: 3,
+  }).addTo(map);
+  let r = 25;
+  const t = setInterval(() => {
+    r += 3;
+    pulse.setRadius(r);
+    pulse.setStyle({ fillOpacity: Math.max(0, 0.35 - (r - 25) / 60) });
+  }, 50);
+  setTimeout(() => { clearInterval(t); map.removeLayer(pulse); }, 1800);
+}
 
 function switchMainTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.toLowerCase().startsWith(name.slice(0,4)));
+  const map = { home: 'home', changes: 'chang', where: 'where', history: 'histo' };
+  const prefix = map[name] || name.slice(0, 4);
+  const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.toLowerCase().startsWith(prefix));
   if (btn) btn.classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
 }
@@ -422,8 +540,9 @@ function toast(msg, ms) {
   setTimeout(() => t.style.display = 'none', ms || 3000);
 }
 
-function params(extra) {
-  const d = document.getElementById('daysBack').value;
+function params(extra, minDays) {
+  let d = parseInt(document.getElementById('daysBack').value, 10);
+  if (minDays) d = Math.max(d, minDays);
   const c = document.getElementById('crimeType').value;
   let q = `days_back=${d}`;
   if (c) q += `&nibrs_code=${encodeURIComponent(c)}`;
@@ -437,7 +556,7 @@ function crimeType() { return document.getElementById('crimeType').value; }
 function npaName(code) {
   if (!code) return 'Unknown';
   const name = NPA_NAMES[String(code)];
-  return name ? `${name} (${code})` : `NPA ${code}`;
+  return name ? `${name} (${code})` : `Area ${code}`;
 }
 
 async function api(path) {
@@ -456,7 +575,45 @@ async function loadNpaMeta() {
   try {
     const data = await api('npa-metadata');
     NPA_NAMES = data.names || {};
+    AREA_CENTERS = {};
+    (data.centers || []).forEach(c => { AREA_CENTERS[c.npa] = c; });
+    populateResidentAreas();
+    populateDivisions();
   } catch (e) { console.error('npa-metadata', e); }
+}
+
+function populateResidentAreas() {
+  const sel = document.getElementById('residentAreaSelect');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Pick an area…</option>';
+  const sorted = Object.keys(NPA_NAMES).sort((a, b) => NPA_NAMES[a].localeCompare(NPA_NAMES[b]));
+  sorted.forEach(code => {
+    const o = document.createElement('option');
+    o.value = code;
+    o.textContent = `${NPA_NAMES[code]} (${code})`;
+    sel.appendChild(o);
+  });
+  sel.value = current;
+}
+
+async function populateDivisions() {
+  const sel = document.getElementById('divisionSelect');
+  if (!sel) return;
+  try {
+    const dbVal = Math.max(daysBack(), 30);
+    const divs = await api(`stats/by-division?days_back=${dbVal}`);
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All divisions</option>';
+    divs.forEach(d => {
+      if (!d.division_id) return;
+      const o = document.createElement('option');
+      o.value = d.division_id;
+      o.textContent = `Div ${d.division_id} (${d.count.toLocaleString()})`;
+      sel.appendChild(o);
+    });
+    sel.value = current;
+  } catch(e) { console.error('populateDivisions', e); }
 }
 
 async function loadTypes() {
@@ -619,7 +776,8 @@ function riskColor(score) {
 
 async function loadRiskMap() {
   try {
-    const data = await api(`analysis/risk-map?${params()}`);
+    const data = await api(`analysis/risk-map?${params(null, 7)}`);
+    currentRiskData = data || [];
     riskLayer.clearLayers();
     const el = document.getElementById('riskAreas');
     const badge = document.getElementById('riskBadge');
@@ -677,7 +835,7 @@ async function loadRiskMap() {
         forecast: '📈 Forecast', anomaly: '⚠️ Anomaly', cluster: '🔴 Cluster',
         repeat: '🔁 Repeat', disorder_311: '📋 311', recency: '🕐 Recent',
       }[d.top_factor] || d.top_factor;
-      return `<div class="stat-row" style="cursor:pointer;" onclick="map.setView([${d.latitude},${d.longitude}],14)">
+      return `<div class="stat-row" style="cursor:pointer;" onclick="flashArea(${d.latitude},${d.longitude})">
         <span class="label">${npaName(d.npa)}</span>
         <span style="font-size:10px;color:#64748b;margin-right:6px;">${factorLabel}</span>
         <span class="value" style="color:${color};font-weight:800;">${d.risk_score}</span>
@@ -690,6 +848,7 @@ async function loadAnomalies() {
   try {
     const windowDays = Math.min(daysBack(), 90);
     const data = await api(`analysis/anomalies?days_back=${windowDays}&threshold=2${crimeType() ? '&nibrs_code=' + encodeURIComponent(crimeType()) : ''}`);
+    currentAnomalies = data || [];
     document.getElementById('anomalyBadge').textContent = data.length;
     const el = document.getElementById('anomalyList');
     if (!data.length) {
@@ -725,6 +884,7 @@ async function loadClusters() {
       api(`analysis/clusters?${params()}`),
       api(`analysis/emerging-clusters?${params()}`),
     ]);
+    currentEmerging = emerging || [];
     document.getElementById('clusterBadge').textContent = emerging.length;
 
     clusterLayer.clearLayers();
@@ -797,7 +957,7 @@ async function loadWhatChanged() {
   try {
     const mode = document.getElementById('compareMode').value;
     const n = document.getElementById('compareN').value;
-    let url = `analysis/what-changed?${params()}&compare=${mode}`;
+    let url = `analysis/what-changed?${params(null, 7)}&compare=${mode}`;
     if (mode !== 'period') url += `&compare_n=${n}`;
     const data = await api(url);
     const deltaEl = document.getElementById('changeDelta');
@@ -843,7 +1003,7 @@ async function loadProximity() {
 
 async function loadVenues() {
   try {
-    const data = await api(`analysis/venues?${params()}`);
+    const data = await api(`analysis/venues?${params(null, 30)}`);
     venueLayer.clearLayers();
     const el = document.getElementById('venueStats');
 
@@ -982,6 +1142,7 @@ async function loadTypeForecast() {
   try {
     const ct = crimeType();
     const data = await api(`analysis/type-forecast?days_back=730&forecast_days=7${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    currentTypeForecast = data || [];
     const el = document.getElementById('typeForecast');
     const rising = data.filter(t => t.trend === 'increasing').length;
     document.getElementById('typeAlertBadge').textContent = rising;
@@ -1010,6 +1171,7 @@ async function loadEscalationRisk() {
     const ct = crimeType();
     const dbVal = Math.max(daysBack(), 30);
     const data = await api(`analysis/escalation-risk?days_back=${dbVal}${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    currentEscalation = data || {summary:{total_at_risk:0,high_risk_count:0,total_escalations:0},at_risk_locations:[]};
     const el = document.getElementById('escalationRisk');
     const badge = document.getElementById('escalationBadge');
     badge.textContent = data.summary.high_risk_count;
@@ -1022,7 +1184,7 @@ async function loadEscalationRisk() {
     if (data.at_risk_locations && data.at_risk_locations.length) {
       html += '<div style="font-size:11px;color:#f87171;margin-top:8px;font-weight:600;">TOP AT-RISK</div>';
       data.at_risk_locations.slice(0, 6).forEach(loc => {
-        const nn = NPA_NAMES[loc.npa] || ('NPA ' + loc.npa);
+        const nn = NPA_NAMES[loc.npa] || ('Area ' + loc.npa);
         const col = loc.risk_level === 'high' ? '#ef4444' : '#eab308';
         html += `<div class="stat-row"><span class="label" title="${loc.address}">${(loc.address || '').substring(0, 30)} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value" style="color:${col}">${loc.property_count} prop</span></div>`;
       });
@@ -1034,6 +1196,7 @@ async function loadEscalationRisk() {
 async function loadUpcomingEvents() {
   try {
     const data = await api('analysis/upcoming-events?days_ahead=14');
+    currentUpcoming = data || [];
     const el = document.getElementById('upcomingEvents');
     document.getElementById('eventBadge').textContent = data.length;
     document.getElementById('eventBadge').className = data.length > 5 ? 'badge badge-red' : data.length > 0 ? 'badge badge-yellow' : 'badge badge-green';
@@ -1059,6 +1222,7 @@ async function loadPatterns() {
     const ct = crimeType();
     const dbVal = Math.max(daysBack(), 30);
     const data = await api(`analysis/patterns?days_back=${dbVal}${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    currentPatterns = data || {temporal_patterns:[],geographic_drift:[],mo_patterns:[],summary:{}};
     const el = document.getElementById('detectedPatterns');
     const total = (data.summary.temporal_count || 0) + (data.summary.drift_count || 0);
     document.getElementById('patternBadge').textContent = total;
@@ -1067,14 +1231,14 @@ async function loadPatterns() {
     if (data.temporal_patterns && data.temporal_patterns.length) {
       html += '<div style="font-size:11px;color:#fbbf24;font-weight:600;">RECURRING</div>';
       data.temporal_patterns.slice(0, 5).forEach(p => {
-        const nn = NPA_NAMES[p.npa] || ('NPA ' + p.npa);
+        const nn = NPA_NAMES[p.npa] || ('Area ' + p.npa);
         html += `<div class="stat-row"><span class="label" title="${p.address}">${p.pattern} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value">${p.incident_count}x</span></div>`;
       });
     }
     if (data.geographic_drift && data.geographic_drift.length) {
       html += '<div style="font-size:11px;color:#fb923c;margin-top:8px;font-weight:600;">GEOGRAPHIC DRIFT</div>';
       data.geographic_drift.slice(0, 5).forEach(d => {
-        const nn = NPA_NAMES[d.npa] || ('NPA ' + d.npa);
+        const nn = NPA_NAMES[d.npa] || ('Area ' + d.npa);
         const arrow = {north:'↑',south:'↓',east:'→',west:'←'}[d.direction] || '?';
         html += `<div class="stat-row"><span class="label">${nn} ${arrow} ${d.direction}</span><span class="value">${d.distance_km}km</span></div>`;
       });
@@ -1123,7 +1287,7 @@ async function loadBriefing() {
     sections.push(`<div class="modal-section">
       <h4>Predictive Outlook (next 7 days)</h4>
       <div>Trend: <strong style="color:${po.trend==='increasing'?'#ef4444':po.trend==='decreasing'?'#22c55e':'#eab308'}">${(po.trend||'?').toUpperCase()}</strong> · avg ${po.avg_daily || '?'}/day</div>
-      ${(po.high_risk_npas || []).length ? `<div style="margin-top:6px;"><strong style="color:#f97316;font-size:11px;">TOP RISK NPAS</strong><br>${po.high_risk_npas.slice(0,5).map(n => `${NPA_NAMES[n.npa]||('NPA '+n.npa)} <span style="color:${riskColor(n.risk_score)};font-weight:700;">${n.risk_score}</span>`).join(' · ')}</div>` : ''}
+      ${(po.high_risk_npas || []).length ? `<div style="margin-top:6px;"><strong style="color:#f97316;font-size:11px;">TOP RISK AREAS</strong><br>${po.high_risk_npas.slice(0,5).map(n => `${NPA_NAMES[n.npa]||('Area '+n.npa)} <span style="color:${riskColor(n.risk_score)};font-weight:700;">${n.risk_score}</span>`).join(' · ')}</div>` : ''}
       ${(po.rising_types || []).length ? `<div style="margin-top:6px;"><strong style="color:#ef4444;font-size:11px;">RISING TYPES</strong><br>${po.rising_types.slice(0,4).map(t => `${t.description} +${t.pct_change}%`).join(' · ')}</div>` : ''}
       ${(po.falling_types || []).length ? `<div style="margin-top:6px;"><strong style="color:#22c55e;font-size:11px;">FALLING TYPES</strong><br>${po.falling_types.slice(0,4).map(t => `${t.description} ${t.pct_change}%`).join(' · ')}</div>` : ''}
     </div>`);
@@ -1168,6 +1332,227 @@ function copyBriefing() {
   navigator.clipboard.writeText(text).then(() => toast('Briefing copied'));
 }
 
+// ============ ROLE HOME RENDERERS ============
+
+function renderSergeantHome() {
+  const div = document.getElementById('divisionSelect').value;
+  document.getElementById('sergeantDivBadge').textContent = div ? `Division ${div}` : 'All divisions';
+
+  // Priorities: top 3 risk areas, filtered to division if possible via incident lookup
+  let areas = currentRiskData.slice();
+  areas = areas.filter(a => a.risk_score >= 5).slice(0, 5);
+
+  const pri = document.getElementById('patrolPriorities');
+  if (!areas.length) {
+    pri.innerHTML = '<div style="color:#22c55e;font-size:12px;padding:12px;">No elevated areas — carry on.</div>';
+  } else {
+    pri.innerHTML = areas.map((d, i) => {
+      const sev = d.risk_score >= 50 ? 'sev-high' : d.risk_score >= 25 ? 'sev-med' : 'sev-low';
+      const color = riskColor(d.risk_score);
+      const why = d.narrative || `Risk score ${d.risk_score}`;
+      return `<div class="priority-item ${sev}" onclick="flashArea(${d.latitude},${d.longitude})">
+        <div class="pri-header">
+          <span class="pri-name">#${i+1} ${npaName(d.npa)}</span>
+          <span class="pri-score" style="color:${color};">${d.risk_score}</span>
+        </div>
+        <div class="pri-why">${why}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Since last shift: anomalies in last 24h-ish
+  const sinceEl = document.getElementById('sergeantSinceLast');
+  const recentA = (currentAnomalies || []).filter(a => {
+    const d = new Date(a.date);
+    return (Date.now() - d.getTime()) <= 2 * 24 * 60 * 60 * 1000;
+  }).slice(0, 8);
+  const newClusters = (currentEmerging || []).filter(c => c.is_new).slice(0, 4);
+  document.getElementById('sergeantNewBadge').textContent = recentA.length + newClusters.length;
+
+  let since = '';
+  if (recentA.length) {
+    since += '<div style="font-size:11px;color:#f87171;font-weight:600;margin-bottom:4px;">ANOMALIES</div>';
+    recentA.forEach(a => {
+      since += `<div class="stat-row" style="cursor:pointer;" onclick="flashArea(${(AREA_CENTERS[a.npa]||{}).latitude},${(AREA_CENTERS[a.npa]||{}).longitude})"><span class="label">${npaName(a.npa)} <small>(${a.date})</small></span><span class="value up">${a.count} <small>(${a.z_score}σ)</small></span></div>`;
+    });
+  }
+  if (newClusters.length) {
+    since += '<div style="font-size:11px;color:#fbbf24;font-weight:600;margin:8px 0 4px;">NEW CLUSTERS</div>';
+    newClusters.forEach(c => {
+      since += `<div class="stat-row" style="cursor:pointer;" onclick="flashArea(${c.center_lat},${c.center_lon})"><span class="label">${c.incident_count} incidents · ${c.daily_rate}/day</span><span class="value up">NEW</span></div>`;
+    });
+  }
+  sinceEl.innerHTML = since || '<div style="color:#22c55e;font-size:12px;">Nothing new since yesterday.</div>';
+
+  // Warnings: events in next 24h + top escalation risks
+  const warnEl = document.getElementById('sergeantWarnings');
+  const soonEvents = (currentUpcoming || []).filter(e => (e.days_from_now ?? 999) <= 1).slice(0, 5);
+  const topEsc = ((currentEscalation && currentEscalation.at_risk_locations) || []).slice(0, 5);
+  document.getElementById('sergeantWarnBadge').textContent = soonEvents.length + topEsc.length;
+
+  let warn = '';
+  if (soonEvents.length) {
+    warn += '<div style="font-size:11px;color:#22d3ee;font-weight:600;margin-bottom:4px;">EVENTS NEXT 24H</div>';
+    soonEvents.forEach(e => {
+      const when = e.days_from_now === 0 ? 'Today' : 'Tomorrow';
+      warn += `<div class="stat-row"><span class="label">${e.name}</span><span class="value" style="color:#22d3ee">${when}</span></div>`;
+    });
+  }
+  if (topEsc.length) {
+    warn += '<div style="font-size:11px;color:#f87171;font-weight:600;margin:8px 0 4px;">ESCALATION WATCH</div>';
+    topEsc.forEach(loc => {
+      const nn = NPA_NAMES[loc.npa] || ('Area ' + loc.npa);
+      warn += `<div class="stat-row"><span class="label" title="${loc.address}">${(loc.address||'').substring(0,30)} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value" style="color:#ef4444">${loc.property_count}p</span></div>`;
+    });
+  }
+  warnEl.innerHTML = warn || '<div style="color:#22c55e;font-size:12px;">Nothing to warn the team about right now.</div>';
+}
+
+async function renderResidentHome() {
+  const code = document.getElementById('residentAreaSelect').value;
+  const heroEl = document.getElementById('residentHero');
+  const recentCard = document.getElementById('residentRecentCard');
+  const eventsCard = document.getElementById('residentEventsCard');
+
+  if (!code) {
+    heroEl.innerHTML = '<div style="color:#64748b;font-size:12px;padding:12px 0;">Pick your neighborhood above to see how it\'s trending.</div>';
+    recentCard.style.display = 'none';
+    eventsCard.style.display = 'none';
+    return;
+  }
+
+  const dbVal = Math.max(daysBack(), 7);
+  try {
+    const data = await api(`analysis/area/${code}?days_back=${dbVal}`);
+    const arrow = data.trend === 'increasing' ? '↑' : data.trend === 'decreasing' ? '↓' : '→';
+    const trendColor = data.trend === 'increasing' ? '#ef4444' : data.trend === 'decreasing' ? '#22c55e' : '#eab308';
+    const trendWord = data.trend === 'increasing' ? 'rising' : data.trend === 'decreasing' ? 'falling' : 'steady';
+    const windowLabel = dbVal === 7 ? 'this week' : dbVal === 30 ? 'this month' : `last ${dbVal} days`;
+    heroEl.innerHTML = `
+      <div class="hero-card">
+        <div class="hero-label">${NPA_NAMES[code] || 'Area ' + code}</div>
+        <div style="display:flex;align-items:baseline;gap:12px;">
+          <div class="hero-value" style="color:${trendColor};">${arrow} ${trendWord}</div>
+          <div class="hero-sub">${data.current_count} incidents ${windowLabel}${data.pct_change != null ? ` · ${data.pct_change > 0 ? '+' : ''}${data.pct_change}% vs prior` : ''}</div>
+        </div>
+        ${data.top_types.length ? `<div style="margin-top:10px;font-size:12px;color:#cbd5e1;">Most common: ${data.top_types.slice(0,3).map(t => `<span style="color:#f1f5f9;">${t.description || t.nibrs_code}</span> (${t.count})`).join(' · ')}</div>` : ''}
+      </div>
+    `;
+    if (data.latitude && data.longitude) flashArea(data.latitude, data.longitude);
+
+    const recentEl = document.getElementById('residentRecent');
+    if (data.recent_incidents && data.recent_incidents.length) {
+      recentCard.style.display = '';
+      recentEl.innerHTML = data.recent_incidents.map(r => {
+        const dt = r.date ? r.date.slice(0, 10) : '';
+        return `<div class="stat-row"><span class="label">${r.nibrs_offense_description || '—'} · ${r.address || ''}</span><span class="value">${dt}</span></div>`;
+      }).join('');
+    } else {
+      recentCard.style.display = 'none';
+    }
+
+    const nearSoon = (currentUpcoming || []).slice(0, 5);
+    if (nearSoon.length) {
+      eventsCard.style.display = '';
+      document.getElementById('residentEvents').innerHTML = nearSoon.map(e => {
+        const when = e.days_from_now === 0 ? 'Today' : e.days_from_now === 1 ? 'Tomorrow' : `In ${e.days_from_now} days`;
+        return `<div class="stat-row"><span class="label">${e.name}</span><span class="value" style="color:#22d3ee">${when}</span></div>`;
+      }).join('');
+    } else {
+      eventsCard.style.display = 'none';
+    }
+  } catch(e) {
+    console.error('renderResidentHome', e);
+    heroEl.innerHTML = '<div style="color:#ef4444;font-size:12px;">Could not load this area.</div>';
+  }
+}
+
+async function renderChiefHome() {
+  const chiefDivs = document.getElementById('chiefDivisions');
+  try {
+    const dbVal = Math.max(daysBack(), 30);
+    const halfBack = Math.floor(dbVal / 2);
+    const [cur, prev] = await Promise.all([
+      api(`stats/by-division?days_back=${dbVal}`),
+      api(`stats/by-division?days_back=${dbVal * 2}`),
+    ]);
+    const prevMap = {};
+    prev.forEach(d => { prevMap[d.division_id] = d.count; });
+    const rows = cur.filter(d => d.division_id).map(d => {
+      const prevTotal = prevMap[d.division_id] || 0;
+      const prevHalf = Math.max(prevTotal - d.count, 0);
+      const pct = prevHalf > 0 ? Math.round((d.count - prevHalf) / prevHalf * 100) : null;
+      return { division: d.division_id, count: d.count, pct };
+    }).sort((a, b) => b.count - a.count);
+
+    chiefDivs.innerHTML = rows.map(r => {
+      const arrow = r.pct == null ? '—' : r.pct > 10 ? '▲' : r.pct < -10 ? '▼' : '→';
+      const color = r.pct == null ? '#94a3b8' : r.pct > 10 ? '#ef4444' : r.pct < -10 ? '#22c55e' : '#eab308';
+      return `<div class="stat-row"><span class="label">Division ${r.division}</span><span class="value" style="color:${color}">${arrow} ${r.count.toLocaleString()}${r.pct != null ? ` <small>(${r.pct > 0 ? '+' : ''}${r.pct}%)</small>` : ''}</span></div>`;
+    }).join('') || '<div style="color:#64748b;font-size:12px;">No division data.</div>';
+  } catch(e) { console.error('renderChiefHome divisions', e); }
+
+  const rising = (currentTypeForecast || []).filter(t => t.trend === 'increasing').slice(0, 8);
+  document.getElementById('chiefRisingBadge').textContent = rising.length;
+  document.getElementById('chiefRising').innerHTML = rising.length
+    ? rising.map(t => `<div class="stat-row"><span class="label">${t.description}</span><span class="value up">+${t.pct_change}% <small>(${t.forecast_avg}/day)</small></span></div>`).join('')
+    : '<div style="color:#22c55e;font-size:12px;">No crime types trending up right now.</div>';
+
+  try {
+    const dbVal = Math.max(daysBack(), 30);
+    const clr = await api(`analysis/clearance?days_back=${dbVal}`);
+    let html = `<div class="stat-row"><span class="label">Overall</span><span class="value" style="font-weight:700;color:#60a5fa;">${clr.overall_rate}%</span></div>`;
+    (clr.by_type || []).slice(0, 6).forEach(t => {
+      const col = t.clearance_rate > 50 ? '#22c55e' : t.clearance_rate > 25 ? '#eab308' : '#ef4444';
+      html += `<div class="stat-row"><span class="label">${t.description || t.nibrs_code}</span><span class="value" style="color:${col}">${t.clearance_rate}%</span></div>`;
+    });
+    document.getElementById('chiefClearance').innerHTML = html;
+  } catch(e) { console.error('renderChiefHome clearance', e); }
+}
+
+function renderDetectiveHome() {
+  const p = currentPatterns || {temporal_patterns:[],geographic_drift:[],mo_patterns:[]};
+  const totalPat = (p.temporal_patterns || []).length + (p.geographic_drift || []).length;
+  document.getElementById('detPatternBadge').textContent = totalPat;
+  let patHtml = '';
+  if ((p.temporal_patterns || []).length) {
+    patHtml += '<div style="font-size:11px;color:#fbbf24;font-weight:600;">RECURRING</div>';
+    p.temporal_patterns.slice(0, 6).forEach(pat => {
+      const nn = NPA_NAMES[pat.npa] || ('Area ' + pat.npa);
+      patHtml += `<div class="stat-row" style="cursor:pointer;" onclick="flashArea(${pat.latitude},${pat.longitude})"><span class="label" title="${pat.address}">${pat.pattern} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value">${pat.incident_count}x</span></div>`;
+    });
+  }
+  if ((p.geographic_drift || []).length) {
+    patHtml += '<div style="font-size:11px;color:#fb923c;font-weight:600;margin-top:8px;">GEOGRAPHIC DRIFT</div>';
+    p.geographic_drift.slice(0, 5).forEach(d => {
+      const nn = NPA_NAMES[d.npa] || ('Area ' + d.npa);
+      const arrow = {north:'↑',south:'↓',east:'→',west:'←'}[d.direction] || '?';
+      patHtml += `<div class="stat-row"><span class="label">${nn} ${arrow} ${d.direction}</span><span class="value">${d.distance_km}km</span></div>`;
+    });
+  }
+  document.getElementById('detPatterns').innerHTML = patHtml || '<div style="color:#64748b;font-size:12px;">No active patterns detected.</div>';
+
+  const esc = currentEscalation || {summary:{high_risk_count:0},at_risk_locations:[]};
+  document.getElementById('detEscBadge').textContent = esc.summary.high_risk_count || 0;
+  const escEl = document.getElementById('detEscalation');
+  const locs = (esc.at_risk_locations || []).slice(0, 8);
+  if (!locs.length) {
+    escEl.innerHTML = '<div style="color:#64748b;font-size:12px;">No locations currently flagged.</div>';
+  } else {
+    escEl.innerHTML = locs.map(loc => {
+      const nn = NPA_NAMES[loc.npa] || ('Area ' + loc.npa);
+      const col = loc.risk_level === 'high' ? '#ef4444' : '#eab308';
+      return `<div class="stat-row"><span class="label" title="${loc.address}">${(loc.address||'').substring(0,30)} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value" style="color:${col}">${loc.property_count} prop · ${loc.risk_level}</span></div>`;
+    }).join('');
+  }
+
+  const moEl = document.getElementById('detMO');
+  const mos = (p.mo_patterns || []).slice(0, 10);
+  moEl.innerHTML = mos.length
+    ? mos.map(m => `<div class="stat-row"><span class="label">${m.description} · ${m.place_type}</span><span class="value">${m.count}x <small>${m.time_pattern}</small></span></div>`).join('')
+    : '<div style="color:#64748b;font-size:12px;">No MO groupings yet.</div>';
+}
+
 async function refresh() {
   toast('Refreshing analysis…');
   await Promise.all([
@@ -1193,6 +1578,8 @@ async function refresh() {
     loadPatterns(),
     loadEscalationRisk(),
   ]);
+  populateDivisions();
+  renderCurrentHome();
   toast('Analysis complete');
 }
 
@@ -1230,6 +1617,7 @@ async function runSocialIngest() {
 async function init() {
   await loadNpaMeta();
   await loadTypes();
+  setRole(currentRole);
   await refresh();
 }
 init();

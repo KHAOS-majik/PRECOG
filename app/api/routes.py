@@ -41,6 +41,7 @@ def list_incidents(
     days_back: Optional[int] = Query(None, ge=1, le=365),
     nibrs_code: Optional[str] = None,
     division_id: Optional[str] = None,
+    npa: Optional[str] = None,
 ):
     session = SessionLocal()
     try:
@@ -52,6 +53,8 @@ def list_incidents(
             q = q.filter(Incident.nibrs_code == nibrs_code)
         if division_id:
             q = q.filter(Incident.division_id == division_id)
+        if npa:
+            q = q.filter(Incident.npa == npa)
         q = q.order_by(Incident.date_reported.desc())
         total = q.count()
         rows = q.offset(offset).limit(limit).all()
@@ -118,19 +121,107 @@ def stats_by_type():
 
 
 @router.get("/stats/by-division")
-def stats_by_division():
+def stats_by_division(
+    days_back: Optional[int] = Query(None, ge=1, le=1825),
+    nibrs_code: Optional[str] = None,
+):
     session = SessionLocal()
     try:
-        rows = (
+        q = session.query(
+            Incident.division_id,
+            func.count().label("count"),
+        )
+        if days_back:
+            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            q = q.filter(Incident.date_reported >= cutoff)
+        if nibrs_code:
+            q = q.filter(Incident.nibrs_code == nibrs_code)
+        rows = q.group_by(Incident.division_id).order_by(func.count().desc()).all()
+        return [{"division_id": r.division_id, "count": r.count} for r in rows]
+    finally:
+        session.close()
+
+
+@router.get("/analysis/area/{npa}")
+def get_area_summary(
+    npa: str,
+    days_back: int = Query(30, ge=7, le=365),
+):
+    session = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        cur_cutoff = now - timedelta(days=days_back)
+        prev_cutoff = now - timedelta(days=days_back * 2)
+
+        cur_count = session.query(func.count(Incident.id)).filter(
+            Incident.npa == npa, Incident.date_reported >= cur_cutoff
+        ).scalar() or 0
+        prev_count = session.query(func.count(Incident.id)).filter(
+            Incident.npa == npa,
+            Incident.date_reported >= prev_cutoff,
+            Incident.date_reported < cur_cutoff,
+        ).scalar() or 0
+
+        delta = cur_count - prev_count
+        pct = round(delta / max(prev_count, 1) * 100, 1) if prev_count else None
+        trend = "stable"
+        if prev_count:
+            if cur_count > prev_count * 1.1:
+                trend = "increasing"
+            elif cur_count < prev_count * 0.9:
+                trend = "decreasing"
+
+        top_types = (
             session.query(
-                Incident.division_id,
-                func.count().label("count"),
+                Incident.nibrs_code,
+                Incident.nibrs_offense_description,
+                func.count().label("c"),
             )
-            .group_by(Incident.division_id)
+            .filter(Incident.npa == npa, Incident.date_reported >= cur_cutoff)
+            .group_by(Incident.nibrs_code, Incident.nibrs_offense_description)
             .order_by(func.count().desc())
+            .limit(5)
             .all()
         )
-        return [{"division_id": r.division_id, "count": r.count} for r in rows]
+
+        recent = (
+            session.query(Incident)
+            .filter(Incident.npa == npa, Incident.date_reported >= cur_cutoff)
+            .order_by(Incident.date_reported.desc())
+            .limit(10)
+            .all()
+        )
+
+        center = session.query(
+            func.avg(Incident.latitude).label("lat"),
+            func.avg(Incident.longitude).label("lon"),
+        ).filter(Incident.npa == npa, Incident.latitude.isnot(None)).first()
+
+        return {
+            "npa": npa,
+            "current_count": cur_count,
+            "previous_count": prev_count,
+            "delta": delta,
+            "pct_change": pct,
+            "trend": trend,
+            "days_back": days_back,
+            "latitude": float(center.lat) if center and center.lat else None,
+            "longitude": float(center.lon) if center and center.lon else None,
+            "top_types": [
+                {"nibrs_code": t.nibrs_code, "description": t.nibrs_offense_description, "count": t.c}
+                for t in top_types
+            ],
+            "recent_incidents": [
+                {
+                    "date": r.date_reported.isoformat() if r.date_reported else None,
+                    "address": r.address,
+                    "nibrs_offense_description": r.nibrs_offense_description,
+                    "latitude": r.latitude,
+                    "longitude": r.longitude,
+                }
+                for r in recent
+            ],
+        }
     finally:
         session.close()
 
