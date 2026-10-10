@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Precog</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: #0a0e17; color: #e0e6f0; }
+  .header { background: #111827; border-bottom: 1px solid #1e293b; padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 700; color: #60a5fa; letter-spacing: 2px; }
+  .header .status { font-size: 13px; color: #94a3b8; }
+  .header .status .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .header .status .dot.green { background: #22c55e; }
+  .header .status .dot.yellow { background: #eab308; }
+  .controls { background: #111827; padding: 10px 24px; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #1e293b; flex-wrap: wrap; }
+  .controls label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+  .controls select, .controls button { background: #1e293b; border: 1px solid #334155; color: #e0e6f0; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .controls button.primary { background: #2563eb; border-color: #3b82f6; font-weight: 600; }
+  .controls button.primary:hover { background: #1d4ed8; }
+  .controls button.briefing { background: #059669; border-color: #10b981; font-weight: 600; }
+  .overflow { position: relative; }
+  .overflow-menu { position: absolute; top: 100%; right: 0; margin-top: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px; display: none; z-index: 9000; min-width: 180px; }
+  .overflow-menu.open { display: block; }
+  .overflow-menu button { display: block; width: 100%; text-align: left; background: transparent; border: none; color: #e0e6f0; padding: 6px 10px; cursor: pointer; font-size: 13px; border-radius: 4px; }
+  .overflow-menu button:hover { background: #1e293b; }
+  .layout { display: grid; grid-template-columns: 1fr 420px; grid-template-rows: 1fr 240px; height: calc(100vh - 95px); }
+  #map { grid-row: 1 / 3; background: #0f172a; position: relative; }
+  .legend { position: absolute; bottom: 16px; left: 16px; background: rgba(15,23,42,0.92); border: 1px solid #334155; border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #cbd5e1; z-index: 1000; max-width: 220px; }
+  .legend h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; margin-bottom: 6px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .legend .swatch { width: 14px; height: 14px; flex-shrink: 0; display: inline-block; }
+  .legend .swatch.heat { background: linear-gradient(to right, #1e3a8a, #22c55e, #facc15, #dc2626); border-radius: 2px; }
+  .legend .swatch.risk-crit { background: #ef4444; border-radius: 50%; }
+  .legend .swatch.risk-high { background: #f97316; border-radius: 50%; }
+  .legend .swatch.risk-elev { background: #eab308; border-radius: 50%; }
+  .legend .swatch.risk-low { background: #22c55e; border-radius: 50%; }
+  .legend .swatch.cluster { background: #f59e0b; border-radius: 50%; opacity: 0.5; }
+  .legend .swatch.emerging { background: transparent; border: 2px dashed #ef4444; border-radius: 50%; }
+  .legend .swatch.venue { background: #f59e0b; }
+  .legend .swatch.repeat { background: #ef4444; transform: rotate(45deg); }
+  .legend .swatch.news { background: #7c3aed; border-radius: 50%; }
+  .legend .swatch.social { background: #ff4500; border-radius: 50%; }
+  .legend summary { cursor: pointer; outline: none; user-select: none; }
+  .sidebar { grid-column: 2; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .card { background: #111827; border: 1px solid #1e293b; border-radius: 10px; padding: 12px; }
+  .card h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+  .card h3 .badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; letter-spacing: 0; text-transform: none; }
+  .badge-red { background: #7f1d1d; color: #fca5a5; }
+  .badge-yellow { background: #713f12; color: #fde68a; }
+  .badge-green { background: #14532d; color: #86efac; }
+  .badge-blue { background: #1e3a5f; color: #93c5fd; }
+  .stat-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #1e293b; font-size: 13px; align-items: center; }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-row .label { color: #94a3b8; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stat-row .value { color: #f1f5f9; font-weight: 600; flex-shrink: 0; margin-left: 8px; }
+  .stat-row .value.up { color: #ef4444; }
+  .stat-row .value.down { color: #22c55e; }
+  .stat-row .value.stable { color: #eab308; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .kpi { text-align: center; padding: 10px 6px; background: #0f172a; border-radius: 8px; }
+  .kpi .num { font-size: 20px; font-weight: 700; color: #60a5fa; }
+  .kpi .lbl { font-size: 10px; color: #64748b; text-transform: uppercase; margin-top: 3px; }
+  .chart-box { grid-column: 2; padding: 12px; background: #111827; border-top: 1px solid #1e293b; }
+  .chart-box canvas { width: 100% !important; height: 210px !important; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #1e293b; color: #e0e6f0; padding: 10px 20px; border-radius: 8px; font-size: 13px; display: none; z-index: 9999; border: 1px solid #334155; }
+  .alert-banner { padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 4px; display: flex; align-items: flex-start; gap: 8px; }
+  .alert-banner.critical { background: #450a0a; border: 1px solid #7f1d1d; color: #fca5a5; }
+  .alert-banner.warning { background: #451a03; border: 1px solid #713f12; color: #fde68a; }
+  .alert-banner .alert-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+  .alert-banner .alert-text { flex: 1; }
+  .delta { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 3px; }
+  .delta.pos { color: #ef4444; background: #450a0a; }
+  .delta.neg { color: #22c55e; background: #052e16; }
+  .delta.zero { color: #94a3b8; background: #1e293b; }
+  .news-item { padding: 6px 0; border-bottom: 1px solid #1e293b; }
+  .news-item:last-child { border-bottom: none; }
+  .news-item a { color: #60a5fa; text-decoration: none; font-size: 12px; line-height: 1.4; display: block; }
+  .news-item a:hover { text-decoration: underline; }
+  .news-item .meta { font-size: 11px; color: #64748b; margin-top: 2px; }
+  .predict-explainer { font-size: 11px; color: #94a3b8; line-height: 1.5; padding: 4px 0 2px; }
+  .tab-strip { display: flex; gap: 2px; background: #0a0e17; padding: 2px; border-radius: 8px; margin-bottom: 6px; position: sticky; top: 0; z-index: 10; }
+  .tab-btn { flex: 1; background: transparent; border: none; color: #64748b; padding: 8px 6px; border-radius: 6px; font-size: 11px; cursor: pointer; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .tab-btn.active { background: #1e293b; color: #60a5fa; }
+  .tab-pane { display: none; flex-direction: column; gap: 10px; }
+  .tab-pane.active { display: flex; }
+  .inline-tab-bar { display: flex; gap: 4px; margin-bottom: 8px; }
+  .inline-tab { background: #0f172a; border: none; color: #64748b; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 600; }
+  .inline-tab.active { background: #1e293b; color: #60a5fa; }
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 10000; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: #0f172a; border: 1px solid #334155; border-radius: 12px; width: min(760px, 92vw); max-height: 86vh; display: flex; flex-direction: column; }
+  .modal-header { padding: 16px 20px; border-bottom: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { font-size: 15px; letter-spacing: 2px; color: #60a5fa; }
+  .modal-close { background: transparent; border: none; color: #94a3b8; font-size: 20px; cursor: pointer; }
+  .modal-body { padding: 16px 20px; overflow-y: auto; font-size: 13px; line-height: 1.6; }
+  .modal-section { margin-bottom: 14px; }
+  .modal-section h4 { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #f97316; margin-bottom: 6px; }
+  .modal-section .alert-item { padding: 8px 10px; margin-bottom: 4px; border-radius: 6px; font-size: 12px; }
+  .modal-section .alert-item.critical { background: #450a0a; border-left: 3px solid #ef4444; color: #fca5a5; }
+  .modal-section .alert-item.warning { background: #451a03; border-left: 3px solid #f59e0b; color: #fde68a; }
+  .modal-section .alert-item.info { background: #0c1929; border-left: 3px solid #60a5fa; color: #93c5fd; }
+  .modal-footer { padding: 10px 20px; border-top: 1px solid #1e293b; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: 50vh auto auto; }
+    .sidebar { grid-column: 1; }
+    .chart-box { grid-column: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PRECOG</h1>
+  <span class="status" id="status"><span class="dot yellow"></span>Initializing...</span>
+</div>
+
+<div class="controls">
+  <div>
+    <label>Time Range</label>
+    <select id="daysBack" onchange="refresh()">
+      <option value="1">Last 24h</option>
+      <option value="2">Last 48h</option>
+      <option value="7">Last 7 days</option>
+      <option value="14">Last 14 days</option>
+      <option value="30">Last 30 days</option>
+      <option value="90" selected>Last 90 days</option>
+      <option value="180">Last 6 months</option>
+      <option value="365">Last year</option>
+      <option value="730">Last 2 years</option>
+      <option value="1825">Last 5 years</option>
+    </select>
+  </div>
+  <div>
+    <label>Crime Type</label>
+    <select id="crimeType" onchange="refresh()">
+      <option value="">All Types</option>
+    </select>
+  </div>
+  <button class="primary" onclick="refresh()">Refresh</button>
+  <button class="briefing" onclick="openBriefing()">Briefing</button>
+  <div class="overflow">
+    <button onclick="toggleOverflow(event)">⋯ Admin</button>
+    <div class="overflow-menu" id="overflowMenu">
+      <button onclick="runIngest()">Ingest CMPD</button>
+      <button onclick="runNewsIngest()">Ingest News</button>
+      <button onclick="runSocialIngest()">Ingest Social</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+  <div id="map">
+    <details class="legend" open>
+      <summary><h4 style="display:inline;">Map Legend</h4></summary>
+      <div class="row"><span class="swatch heat"></span>Incident density (heat)</div>
+      <div class="row"><span class="swatch risk-crit"></span>Risk ≥ 75 (critical)</div>
+      <div class="row"><span class="swatch risk-high"></span>Risk 50-75 (high)</div>
+      <div class="row"><span class="swatch risk-elev"></span>Risk 25-50 (elevated)</div>
+      <div class="row"><span class="swatch risk-low"></span>Risk &lt; 25 (low)</div>
+      <div class="row"><span class="swatch cluster"></span>Baseline cluster</div>
+      <div class="row"><span class="swatch emerging"></span>Emerging cluster</div>
+      <div class="row"><span class="swatch venue"></span>Venue (★)</div>
+      <div class="row"><span class="swatch repeat"></span>Repeat-victim location</div>
+      <div class="row"><span class="swatch news"></span>News mention</div>
+      <div class="row"><span class="swatch social"></span>Social post</div>
+    </details>
+  </div>
+  <div class="sidebar">
+
+    <div id="alertsContainer"></div>
+
+    <div class="tab-strip">
+      <button class="tab-btn active" onclick="switchMainTab('now')">Now</button>
+      <button class="tab-btn" onclick="switchMainTab('changes')">Changes</button>
+      <button class="tab-btn" onclick="switchMainTab('where')">Where &amp; Why</button>
+      <button class="tab-btn" onclick="switchMainTab('history')">Historical</button>
+    </div>
+
+    <!-- ====== NOW ====== -->
+    <div class="tab-pane active" id="tab-now">
+
+      <div class="card">
+        <h3>Overview</h3>
+        <div class="kpi-grid" id="kpis">
+          <div class="kpi"><div class="num" id="kpiTotal">--</div><div class="lbl" id="kpiTotalLabel">Incidents</div></div>
+          <div class="kpi"><div class="num" id="kpiDaily">--</div><div class="lbl">Daily Avg</div></div>
+          <div class="kpi"><div class="num" id="kpiClearance">--</div><div class="lbl">Clearance</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Forecast <span class="badge badge-blue" id="modelBadge">ML</span></h3>
+        <div class="predict-explainer">ML forecast of daily counts over the next 14 days using temporal, weather, and lag features.</div>
+        <div class="kpi-grid" style="grid-template-columns: 1fr 1fr;">
+          <div class="kpi"><div class="num" id="kpiTrend">--</div><div class="lbl">Trend</div></div>
+          <div class="kpi"><div class="num" id="kpiForecastAvg">--</div><div class="lbl">Predicted Avg</div></div>
+        </div>
+        <div id="forecastDetail" style="margin-top:8px;"></div>
+        <details style="margin-top:8px;">
+          <summary style="font-size:11px;color:#64748b;cursor:pointer;">Model health</summary>
+          <div class="kpi-grid" style="grid-template-columns: 1fr 1fr 1fr;margin-top:6px;">
+            <div class="kpi"><div class="num" id="mhTrainR2" style="font-size:14px;">--</div><div class="lbl">Train R²</div></div>
+            <div class="kpi"><div class="num" id="mhTestR2" style="font-size:14px;">--</div><div class="lbl">Test R²</div></div>
+            <div class="kpi"><div class="num" id="mhCache" style="font-size:14px;">--</div><div class="lbl">Cache</div></div>
+          </div>
+          <div id="mhFeatures" style="margin-top:6px;font-size:10px;color:#64748b;"></div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h3>Highest Risk Areas <span class="badge badge-red" id="riskBadge">0</span></h3>
+        <div class="predict-explainer">Composite 0-100 risk per NPA. Weighs forecast trend, anomalies, emerging clusters, repeat victimization, 311 disorder, and recency. Click a row to zoom.</div>
+        <div id="riskAreas" style="max-height:280px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Anomaly Alerts <span class="badge badge-red" id="anomalyBadge">0</span></h3>
+        <div class="predict-explainer">NPAs whose recent daily counts are statistically unusual vs their own year-long baseline.</div>
+        <div id="anomalyList" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Upcoming Events <span class="badge badge-yellow" id="eventBadge">0</span></h3>
+        <div class="predict-explainer">Games, holidays, festivals, and school breaks in the next 14 days that historically shift crime patterns.</div>
+        <div id="upcomingEvents" style="max-height:200px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ====== CHANGES ====== -->
+    <div class="tab-pane" id="tab-changes">
+      <div class="card">
+        <h3>What Changed <span class="delta zero" id="changeDelta">--</span></h3>
+        <div style="display:flex;gap:6px;margin:6px 0 8px;flex-wrap:wrap;">
+          <select id="compareMode" onchange="onCompareChange()" style="padding:4px 8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px;">
+            <option value="period">vs Prior Period</option>
+            <option value="day">Day over Day</option>
+            <option value="week">Week over Week</option>
+            <option value="month">Month over Month</option>
+            <option value="year">Year over Year</option>
+          </select>
+          <select id="compareN" onchange="loadWhatChanged()" style="padding:4px 8px;border-radius:6px;border:1px solid #334155;background:#1e293b;color:#e2e8f0;font-size:12px;display:none;"></select>
+        </div>
+        <div class="predict-explainer" id="compareExplainer">Comparing the selected time range to the matching window before it.</div>
+        <div id="whatChanged"></div>
+      </div>
+
+      <div class="card">
+        <h3>Crime Type Forecast <span class="badge badge-yellow" id="typeAlertBadge">0</span></h3>
+        <div class="predict-explainer">Per-type ML forecasts for top-10 crime categories. Shows which types are trending up vs the prior 2-week baseline.</div>
+        <div id="typeForecast" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ====== WHERE & WHY ====== -->
+    <div class="tab-pane" id="tab-where">
+      <div class="card">
+        <h3>Emerging Clusters <span class="badge badge-yellow" id="clusterBadge">0</span></h3>
+        <div class="predict-explainer">New geographic clusters in the last 14 days that didn't exist in the prior baseline. Red dashed circles on the map.</div>
+        <div id="clusterList" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Escalation Risk <span class="badge badge-red" id="escalationBadge">0</span></h3>
+        <div class="predict-explainer">Locations where repeated property crimes may precede violent crime, based on historical transition patterns.</div>
+        <div id="escalationRisk" style="max-height:260px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Repeat Victimization</h3>
+        <div class="predict-explainer">Addresses with 3+ incidents in the selected period.</div>
+        <div id="repeatLocs" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Detected Patterns <span class="badge badge-yellow" id="patternBadge">0</span></h3>
+        <div class="predict-explainer">Recurring schedules at an address, geographic drift of clusters, and common MO groupings.</div>
+        <div id="detectedPatterns" style="max-height:300px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ====== HISTORICAL ====== -->
+    <div class="tab-pane" id="tab-history">
+      <div class="card">
+        <div class="inline-tab-bar">
+          <button class="inline-tab active" onclick="switchInlineTab('areas','raw')">Raw</button>
+          <button class="inline-tab" onclick="switchInlineTab('areas','percap')">Per Capita</button>
+        </div>
+        <h3>Top Areas</h3>
+        <div id="topAreasRaw"></div>
+        <div id="topAreasPercap" style="display:none;"></div>
+      </div>
+
+      <div class="card">
+        <h3>By Type</h3>
+        <div id="byType"></div>
+      </div>
+
+      <div class="card">
+        <h3>Clearance Rates</h3>
+        <div id="clearanceStats"></div>
+      </div>
+
+      <div class="card">
+        <h3>Weather Impact</h3>
+        <div class="predict-explainer">Historical temperature vs daily volume (used as a model feature).</div>
+        <div id="weatherCorr"></div>
+      </div>
+
+      <div class="card">
+        <h3>Venue Analysis</h3>
+        <div id="venueStats" style="max-height:220px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Proximity (500m radius)</h3>
+        <div class="inline-tab-bar">
+          <button class="inline-tab active" onclick="switchInlineTab('prox','schools')">Schools</button>
+          <button class="inline-tab" onclick="switchInlineTab('prox','transit')">Transit</button>
+          <button class="inline-tab" onclick="switchInlineTab('prox','nightlife')">Nightlife</button>
+        </div>
+        <div id="proxSchools"></div>
+        <div id="proxTransit" style="display:none;"></div>
+        <div id="proxNightlife" style="display:none;"></div>
+      </div>
+
+      <div class="card">
+        <h3>311 / Code Enforcement</h3>
+        <div id="ceStats"></div>
+      </div>
+
+      <div class="card">
+        <h3>News Feed</h3>
+        <div id="newsFeed" style="max-height:250px;overflow-y:auto;"></div>
+      </div>
+
+      <div class="card">
+        <h3>Social Media <span class="badge" id="socialBadge" style="background:#f59e0b;color:#000;">0</span></h3>
+        <div id="socialAll" style="max-height:260px;overflow-y:auto;"></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="chart-box">
+    <canvas id="trendChart"></canvas>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="briefingModal" onclick="if(event.target===this)closeBriefing()">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>INTELLIGENCE BRIEFING</h2>
+      <button class="modal-close" onclick="closeBriefing()">×</button>
+    </div>
+    <div class="modal-body" id="briefingBody">
+      <div style="text-align:center;color:#64748b;padding:40px 0;">Generating briefing…</div>
+    </div>
+    <div class="modal-footer">
+      <span id="briefingTimestamp"></span>
+      <button onclick="copyBriefing()" style="background:#1e293b;border:1px solid #334155;color:#e0e6f0;padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;">Copy</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const CLT = [35.2271, -80.8431];
+const map = L.map('map', { zoomControl: false }).setView(CLT, 12);
+L.control.zoom({ position: 'topright' }).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 19
+}).addTo(map);
+
+let markerLayer = L.layerGroup().addTo(map);
+let newsLayer = L.layerGroup().addTo(map);
+let repeatLayer = L.layerGroup().addTo(map);
+let clusterLayer = L.layerGroup().addTo(map);
+let venueLayer = L.layerGroup().addTo(map);
+let socialLayer = L.layerGroup().addTo(map);
+let riskLayer = L.layerGroup().addTo(map);
+let heatLayer = null;
+let trendChart = null;
+let NPA_NAMES = {};
+let lastBriefing = null;
+
+function switchMainTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  const btn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.textContent.toLowerCase().startsWith(name.slice(0,4)));
+  if (btn) btn.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+function switchInlineTab(group, tab) {
+  const tabs = {
+    areas: { raw: 'topAreasRaw', percap: 'topAreasPercap' },
+    prox: { schools: 'proxSchools', transit: 'proxTransit', nightlife: 'proxNightlife' },
+  };
+  Object.values(tabs[group]).forEach(id => document.getElementById(id).style.display = 'none');
+  document.getElementById(tabs[group][tab]).style.display = '';
+  const btn = event.currentTarget;
+  btn.parentElement.querySelectorAll('.inline-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function toggleOverflow(e) {
+  e.stopPropagation();
+  document.getElementById('overflowMenu').classList.toggle('open');
+}
+document.addEventListener('click', () => document.getElementById('overflowMenu').classList.remove('open'));
+
+function toast(msg, ms) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => t.style.display = 'none', ms || 3000);
+}
+
+function params(extra) {
+  const d = document.getElementById('daysBack').value;
+  const c = document.getElementById('crimeType').value;
+  let q = `days_back=${d}`;
+  if (c) q += `&nibrs_code=${encodeURIComponent(c)}`;
+  if (extra) q += '&' + extra;
+  return q;
+}
+
+function daysBack() { return parseInt(document.getElementById('daysBack').value, 10); }
+function crimeType() { return document.getElementById('crimeType').value; }
+
+function npaName(code) {
+  if (!code) return 'Unknown';
+  const name = NPA_NAMES[String(code)];
+  return name ? `${name} (${code})` : `NPA ${code}`;
+}
+
+async function api(path) {
+  const r = await fetch(`/api/${path}`);
+  if (!r.ok) throw new Error(`API ${path} → ${r.status}`);
+  return r.json();
+}
+
+function deltaSpan(val, pct) {
+  if (val > 0) return `<span class="delta pos">+${val} (${pct > 0 ? '+' : ''}${pct}%)</span>`;
+  if (val < 0) return `<span class="delta neg">${val} (${pct}%)</span>`;
+  return `<span class="delta zero">0</span>`;
+}
+
+async function loadNpaMeta() {
+  try {
+    const data = await api('npa-metadata');
+    NPA_NAMES = data.names || {};
+  } catch (e) { console.error('npa-metadata', e); }
+}
+
+async function loadTypes() {
+  try {
+    const types = await api('stats/by-type');
+    const sel = document.getElementById('crimeType');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All Types</option>';
+    types.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.nibrs_code;
+      o.textContent = `${t.nibrs_code} - ${t.description}`;
+      sel.appendChild(o);
+    });
+    sel.value = current;
+  } catch(e) { console.error('loadTypes', e); }
+}
+
+async function loadIncidents() {
+  try {
+    const data = await api(`incidents?limit=500&${params()}`);
+    markerLayer.clearLayers();
+    const dot = { radius: 3, fillColor: '#3b82f6', color: '#1e40af', weight: 1, fillOpacity: 0.6 };
+    data.data.forEach(inc => {
+      if (!inc.latitude || !inc.longitude) return;
+      L.circleMarker([inc.latitude, inc.longitude], dot)
+        .bindPopup(`<b>${inc.nibrs_offense_description || inc.nibrs_code}</b><br>${inc.address || ''}<br><small>${inc.date_reported || ''}</small>`)
+        .addTo(markerLayer);
+    });
+    document.getElementById('kpiTotal').textContent = data.total.toLocaleString();
+    const sel = document.getElementById('crimeType');
+    const typeName = sel.value ? (sel.options[sel.selectedIndex].textContent.split(' - ')[1] || 'Filtered') : 'Incidents';
+    document.getElementById('kpiTotalLabel').textContent = typeName;
+    document.getElementById('status').innerHTML = `<span class="dot green"></span>${data.total.toLocaleString()} incidents loaded`;
+  } catch(e) { console.error('loadIncidents', e); toast('Failed to load incidents'); }
+}
+
+async function loadHotspots() {
+  try {
+    const all = [];
+    let offset = 0;
+    while (true) {
+      const page = await api(`incidents?limit=500&offset=${offset}&${params()}`);
+      all.push(...page.data);
+      if (all.length >= page.total || page.data.length === 0) break;
+      offset += 500;
+    }
+    if (heatLayer) map.removeLayer(heatLayer);
+    const points = all.filter(d => d.latitude && d.longitude).map(d => [d.latitude, d.longitude, 1]);
+    if (points.length > 0) {
+      const n = points.length;
+      const radius = n > 5000 ? 18 : n > 1000 ? 25 : 35;
+      const blur = n > 5000 ? 15 : n > 1000 ? 20 : 25;
+      const maxVal = n > 10000 ? 8 : n > 5000 ? 5 : n > 1000 ? 3 : 1;
+      heatLayer = L.heatLayer(points, {
+        radius, blur, maxZoom: 17, minOpacity: 0.08, max: maxVal,
+        gradient: { 0.1: '#1e3a8a', 0.25: '#2563eb', 0.4: '#06b6d4', 0.55: '#22c55e', 0.7: '#facc15', 0.85: '#f97316', 1.0: '#dc2626' }
+      }).addTo(map);
+    }
+  } catch(e) { console.error('loadHotspots', e); }
+}
+
+async function loadTopAreas() {
+  try {
+    const [areas, percap] = await Promise.all([
+      api(`analysis/top-areas?${params()}`),
+      api(`analysis/per-capita?days_back=${daysBack()}`),
+    ]);
+    document.getElementById('topAreasRaw').innerHTML = areas.slice(0, 10).map(a =>
+      `<div class="stat-row"><span class="label">${npaName(a.npa)}</span><span class="value">${a.incident_count}</span></div>`
+    ).join('');
+    document.getElementById('topAreasPercap').innerHTML = percap.areas.slice(0, 10).map(a =>
+      `<div class="stat-row"><span class="label">${npaName(a.npa)}</span><span class="value">${a.rate_per_1k || '?'}/1k</span></div>`
+    ).join('');
+  } catch(e) { console.error('loadTopAreas', e); }
+}
+
+async function loadByType() {
+  try {
+    const types = await api('stats/by-type');
+    document.getElementById('byType').innerHTML = types.slice(0, 8).map(t =>
+      `<div class="stat-row"><span class="label">${t.description || t.nibrs_code}</span><span class="value">${t.count.toLocaleString()}</span></div>`
+    ).join('');
+  } catch(e) { console.error('loadByType', e); }
+}
+
+async function loadForecast() {
+  try {
+    const c = crimeType();
+    let fq = `days_back=${Math.max(daysBack(), 90)}&forecast_days=14`;
+    if (c) fq += `&nibrs_code=${encodeURIComponent(c)}`;
+    const data = await api(`analysis/forecast-ml?${fq}`);
+    const trendEl = document.getElementById('kpiTrend');
+    if (data.trend === 'increasing') { trendEl.textContent = '↑'; trendEl.style.color = '#ef4444'; }
+    else if (data.trend === 'decreasing') { trendEl.textContent = '↓'; trendEl.style.color = '#22c55e'; }
+    else { trendEl.textContent = '→'; trendEl.style.color = '#eab308'; }
+    document.getElementById('kpiDaily').textContent = data.avg_daily || '--';
+    const badge = document.getElementById('modelBadge');
+    badge.textContent = `${data.model === 'gradient_boosting' ? 'GBR' : 'LIN'} R²=${data.test_r2 || '?'}`;
+
+    const testR2 = data.test_r2 != null ? data.test_r2 : data.r2_score;
+    const trainR2 = data.train_r2 != null ? data.train_r2 : data.r2_score;
+    document.getElementById('mhTrainR2').textContent = trainR2 != null ? trainR2.toFixed(3) : '--';
+    document.getElementById('mhTestR2').textContent = testR2 != null ? testR2.toFixed(3) : '--';
+    document.getElementById('mhCache').textContent = data.from_cache ? `${data.cache_age_hours}h` : 'Fresh';
+    const fi = data.feature_importance || {};
+    const topFeatures = Object.entries(fi).sort((a,b) => b[1]-a[1]).slice(0, 5);
+    document.getElementById('mhFeatures').innerHTML = topFeatures.length
+      ? 'Top features: ' + topFeatures.map(([k,v]) => `${k} <span style="color:#60a5fa;">${(v*100).toFixed(0)}%</span>`).join(' · ')
+      : '';
+
+    const forecastVals = (data.forecast || []).map(f => f.predicted_count);
+    const forecastAvg = forecastVals.length ? (forecastVals.reduce((a,b) => a+b, 0) / forecastVals.length).toFixed(1) : '--';
+    document.getElementById('kpiForecastAvg').textContent = forecastAvg;
+
+    const detailEl = document.getElementById('forecastDetail');
+    if (data.forecast && data.forecast.length) {
+      detailEl.innerHTML = data.forecast.slice(0, 5).map(f =>
+        `<div class="stat-row"><span class="label">${f.date}</span><span class="value" style="color:#f97316;">${f.predicted_count}</span></div>`
+      ).join('');
+    }
+
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    const histLabels = (data.history || []).map(d => d.date.slice(5));
+    const histData = (data.history || []).map(d => d.count);
+    const foreLabels = (data.forecast || []).map(d => d.date.slice(5));
+    const foreData = (data.forecast || []).map(d => d.predicted_count);
+    const labels = [...histLabels, ...foreLabels];
+    const actual = [...histData, ...new Array(foreLabels.length).fill(null)];
+    const predicted = [...new Array(histLabels.length).fill(null), ...foreData];
+
+    trendChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Actual', data: actual, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', fill: true, tension: 0.3, pointRadius: 0 },
+          { label: 'ML Forecast', data: predicted, borderColor: '#f97316', borderDash: [6, 3], backgroundColor: 'rgba(249,115,22,0.08)', fill: true, tension: 0.3, pointRadius: 0 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#475569', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: '#1e293b' } }
+        }
+      }
+    });
+  } catch(e) { console.error('loadForecast', e); }
+}
+
+function riskColor(score) {
+  if (score >= 75) return '#ef4444';
+  if (score >= 50) return '#f97316';
+  if (score >= 25) return '#eab308';
+  return '#22c55e';
+}
+
+async function loadRiskMap() {
+  try {
+    const data = await api(`analysis/risk-map?${params()}`);
+    riskLayer.clearLayers();
+    const el = document.getElementById('riskAreas');
+    const badge = document.getElementById('riskBadge');
+
+    if (!data || !data.length) {
+      el.innerHTML = '<div style="color:#64748b;font-size:12px;">No risk data</div>';
+      badge.textContent = '0';
+      return;
+    }
+
+    const highRisk = data.filter(d => d.risk_score >= 25);
+    badge.textContent = highRisk.length;
+
+    data.forEach(d => {
+      if (d.risk_score < 5) return;
+      const color = riskColor(d.risk_score);
+      const marker = L.circleMarker([d.latitude, d.longitude], {
+        radius: 6 + (d.risk_score / 100) * 10,
+        color: color,
+        fillColor: color,
+        fillOpacity: 0.7,
+        weight: 2,
+      }).addTo(riskLayer);
+
+      const comp = d.components || {};
+      const factors = Object.entries(comp)
+        .filter(([,v]) => v > 10)
+        .sort((a,b) => b[1]-a[1])
+        .map(([k,v]) => `<div style="display:flex;justify-content:space-between;padding:2px 0;">
+          <span style="color:#94a3b8;">${k.replace('_',' ')}</span>
+          <span style="color:${riskColor(v)};font-weight:600;">${v.toFixed(0)}</span>
+        </div>`).join('');
+
+      const narr = d.narrative ? `<div style="margin:6px 0;font-size:11px;color:#334155;font-style:italic;">${d.narrative}</div>` : '';
+
+      marker.bindPopup(`
+        <div style="min-width:220px;font-family:system-ui;font-size:12px;color:#1e293b;">
+          <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${npaName(d.npa)}</div>
+          <div style="font-size:22px;font-weight:800;color:${color};margin-bottom:4px;">Risk: ${d.risk_score}</div>
+          ${narr}
+          <div style="font-weight:600;margin-bottom:4px;color:#64748b;">Score Breakdown</div>
+          ${factors}
+        </div>
+      `);
+    });
+
+    const top10 = data.filter(d => d.risk_score >= 5).slice(0, 10);
+    if (!top10.length) {
+      el.innerHTML = '<div style="color:#22c55e;font-size:12px;">No elevated risk areas</div>';
+      return;
+    }
+    el.innerHTML = top10.map(d => {
+      const color = riskColor(d.risk_score);
+      const factorLabel = {
+        forecast: '📈 Forecast', anomaly: '⚠️ Anomaly', cluster: '🔴 Cluster',
+        repeat: '🔁 Repeat', disorder_311: '📋 311', recency: '🕐 Recent',
+      }[d.top_factor] || d.top_factor;
+      return `<div class="stat-row" style="cursor:pointer;" onclick="map.setView([${d.latitude},${d.longitude}],14)">
+        <span class="label">${npaName(d.npa)}</span>
+        <span style="font-size:10px;color:#64748b;margin-right:6px;">${factorLabel}</span>
+        <span class="value" style="color:${color};font-weight:800;">${d.risk_score}</span>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('loadRiskMap', e); }
+}
+
+async function loadAnomalies() {
+  try {
+    const windowDays = Math.min(daysBack(), 90);
+    const data = await api(`analysis/anomalies?days_back=${windowDays}&threshold=2${crimeType() ? '&nibrs_code=' + encodeURIComponent(crimeType()) : ''}`);
+    document.getElementById('anomalyBadge').textContent = data.length;
+    const el = document.getElementById('anomalyList');
+    if (!data.length) {
+      el.innerHTML = '<div style="color:#22c55e;font-size:12px;">No anomalies detected</div>';
+      document.getElementById('alertsContainer').innerHTML = '';
+      return;
+    }
+    el.innerHTML = data.slice(0, 10).map(a => {
+      const color = a.severity === 'critical' ? '#ef4444' : '#eab308';
+      const icon = a.direction === 'spike' ? '↑' : '↓';
+      return `<div class="stat-row"><span class="label">${npaName(a.npa)} <small>(${a.date})</small></span><span class="value" style="color:${color}">${icon} ${a.count} <small>(${a.z_score}σ)</small></span></div>`;
+    }).join('');
+
+    const alertsEl = document.getElementById('alertsContainer');
+    const critical = data.filter(a => a.severity === 'critical');
+    if (critical.length > 0) {
+      alertsEl.innerHTML = `<div class="alert-banner critical">
+        <span class="alert-icon">⚠</span>
+        <div class="alert-text">
+          <strong>${critical.length} neighborhood${critical.length > 1 ? 's' : ''} with unusual spikes</strong>
+          <div style="font-size:11px;opacity:0.8;margin-top:4px;">${critical.slice(0, 3).map(a => `${npaName(a.npa)}: ${a.count} vs ${a.baseline_mean} normal`).join(' · ')}</div>
+        </div>
+      </div>`;
+    } else {
+      alertsEl.innerHTML = '';
+    }
+  } catch(e) { console.error('loadAnomalies', e); }
+}
+
+async function loadClusters() {
+  try {
+    const [clusters, emerging] = await Promise.all([
+      api(`analysis/clusters?${params()}`),
+      api(`analysis/emerging-clusters?${params()}`),
+    ]);
+    document.getElementById('clusterBadge').textContent = emerging.length;
+
+    clusterLayer.clearLayers();
+    clusters.forEach(c => {
+      const circle = L.circle([c.center_lat, c.center_lon], {
+        radius: Math.max(c.radius_m, 100),
+        color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.15, weight: 1,
+      });
+      circle.bindPopup(`<b style="color:#1e293b;">Cluster #${c.cluster_id}</b><br><small style="color:#475569;">${c.incident_count} incidents · ${c.unique_addresses} addresses</small>`);
+      circle.addTo(clusterLayer);
+    });
+
+    emerging.forEach(c => {
+      const circle = L.circle([c.center_lat, c.center_lon], {
+        radius: Math.max(c.radius_m, 100),
+        color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.25, weight: 2, dashArray: '5,5',
+      });
+      circle.bindPopup(`<b style="color:#dc2626;">EMERGING</b><br><small style="color:#475569;">${c.incident_count} incidents · ${c.daily_rate}/day</small>`);
+      circle.addTo(clusterLayer);
+    });
+
+    const el = document.getElementById('clusterList');
+    if (!emerging.length) {
+      el.innerHTML = '<div style="color:#22c55e;font-size:12px;">No emerging clusters</div>';
+    } else {
+      el.innerHTML = emerging.map(c =>
+        `<div class="stat-row" style="cursor:pointer;" onclick="map.setView([${c.center_lat},${c.center_lon}],15)"><span class="label">(${c.center_lat.toFixed(3)}, ${c.center_lon.toFixed(3)})</span><span class="value up">${c.incident_count} <small>${c.is_new ? 'NEW' : c.change_ratio + 'x'}</small></span></div>`
+      ).join('');
+    }
+  } catch(e) { console.error('loadClusters', e); }
+}
+
+async function loadClearance() {
+  try {
+    const dbVal = Math.max(daysBack(), 30);
+    const ct = crimeType();
+    const data = await api(`analysis/clearance?days_back=${dbVal}${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    document.getElementById('kpiClearance').textContent = (data.overall_rate ?? '--') + '%';
+    const el = document.getElementById('clearanceStats');
+    let html = `<div class="stat-row"><span class="label">Overall</span><span class="value">${data.overall_rate}% (${data.overall_cleared.toLocaleString()}/${data.overall_total.toLocaleString()})</span></div>`;
+    (data.by_type || []).slice(0, 6).forEach(t => {
+      const color = t.clearance_rate > 50 ? '#22c55e' : t.clearance_rate > 25 ? '#eab308' : '#ef4444';
+      html += `<div class="stat-row"><span class="label">${t.description || t.nibrs_code}</span><span class="value" style="color:${color}">${t.clearance_rate}%</span></div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { console.error('loadClearance', e); }
+}
+
+function onCompareChange() {
+  const mode = document.getElementById('compareMode').value;
+  const nSel = document.getElementById('compareN');
+  if (mode === 'period') {
+    nSel.style.display = 'none';
+  } else {
+    nSel.style.display = '';
+    nSel.innerHTML = '';
+    const maxN = mode === 'year' ? 5 : 3;
+    const unit = {day:'day',week:'week',month:'month',year:'year'}[mode];
+    for (let i = 1; i <= maxN; i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${i} ${unit}${i>1?'s':''}`;
+      nSel.appendChild(opt);
+    }
+  }
+  loadWhatChanged();
+}
+
+async function loadWhatChanged() {
+  try {
+    const mode = document.getElementById('compareMode').value;
+    const n = document.getElementById('compareN').value;
+    let url = `analysis/what-changed?${params()}&compare=${mode}`;
+    if (mode !== 'period') url += `&compare_n=${n}`;
+    const data = await api(url);
+    const deltaEl = document.getElementById('changeDelta');
+    if (data.total_change > 0) { deltaEl.className = 'delta pos'; deltaEl.innerHTML = `+${data.total_pct_change}%`; }
+    else if (data.total_change < 0) { deltaEl.className = 'delta neg'; deltaEl.innerHTML = `${data.total_pct_change}%`; }
+    else { deltaEl.className = 'delta zero'; deltaEl.innerHTML = '0%'; }
+
+    document.getElementById('compareExplainer').textContent =
+      `${data.label_current} (${data.current_start} → ${data.current_end}) vs ${data.label_previous} (${data.previous_start} → ${data.previous_end})`;
+
+    const el = document.getElementById('whatChanged');
+    let html = `<div class="stat-row"><span class="label">${data.label_current || 'Current'}</span><span class="value">${data.current_total.toLocaleString()}</span></div>`;
+    html += `<div class="stat-row"><span class="label">${data.label_previous || 'Previous'}</span><span class="value">${data.previous_total.toLocaleString()}</span></div>`;
+    if (data.rising_types.length) {
+      html += '<div style="font-size:11px;color:#ef4444;margin-top:8px;font-weight:600;">RISING</div>';
+      data.rising_types.slice(0, 4).forEach(t => {
+        html += `<div class="stat-row"><span class="label">${t.description || t.nibrs_code}</span>${deltaSpan(t.delta, t.pct_change)}</div>`;
+      });
+    }
+    if (data.falling_types.length) {
+      html += '<div style="font-size:11px;color:#22c55e;margin-top:8px;font-weight:600;">FALLING</div>';
+      data.falling_types.slice(0, 4).forEach(t => {
+        html += `<div class="stat-row"><span class="label">${t.description || t.nibrs_code}</span>${deltaSpan(t.delta, t.pct_change)}</div>`;
+      });
+    }
+    el.innerHTML = html;
+  } catch(e) { console.error('loadWhatChanged', e); }
+}
+
+async function loadProximity() {
+  try {
+    const data = await api(`analysis/proximity?${params()}`);
+    const cats = data.categories || {};
+    ['schools', 'transit_hubs', 'nightlife_areas'].forEach(cat => {
+      const elId = cat === 'transit_hubs' ? 'proxTransit' : cat === 'nightlife_areas' ? 'proxNightlife' : 'proxSchools';
+      const items = (cats[cat] || []).slice(0, 8);
+      document.getElementById(elId).innerHTML = items.length ? items.map(p =>
+        `<div class="stat-row"><span class="label">${p.name}</span><span class="value">${p.incidents_within}</span></div>`
+      ).join('') : '<div style="color:#64748b;font-size:12px;">No data</div>';
+    });
+  } catch(e) { console.error('loadProximity', e); }
+}
+
+async function loadVenues() {
+  try {
+    const data = await api(`analysis/venues?${params()}`);
+    venueLayer.clearLayers();
+    const el = document.getElementById('venueStats');
+
+    const venueIcon = L.divIcon({
+      className: '',
+      html: '<div style="background:#f59e0b;width:16px;height:16px;border-radius:3px;border:2px solid #fbbf24;box-shadow:0 0 8px rgba(245,158,11,0.6);display:flex;align-items:center;justify-content:center;font-size:10px;color:#000;font-weight:bold;">★</div>',
+      iconSize: [16, 16], iconAnchor: [8, 8]
+    });
+
+    data.forEach(v => {
+      L.marker([v.lat, v.lon], { icon: venueIcon })
+        .bindPopup(`<b style="color:#1e293b;">${v.venue}</b><br><small style="color:#475569;">${v.total_incidents} incidents · ${v.daily_avg}/day</small>`)
+        .addTo(venueLayer);
+    });
+
+    el.innerHTML = data.slice(0, 8).map(v =>
+      `<div class="stat-row"><span class="label">${v.venue}</span><span class="value">${v.total_incidents} <small>(${v.daily_avg}/d)</small></span></div>`
+    ).join('') || '<div style="color:#64748b;font-size:12px;">No venue data</div>';
+  } catch(e) { console.error('loadVenues', e); }
+}
+
+async function loadNews() {
+  try {
+    const data = await api('news?limit=100');
+    newsLayer.clearLayers();
+    data.data.forEach(n => {
+      if (n.latitude && n.longitude) {
+        const recent = n.is_recent_crime === 1;
+        const color = recent ? '#7c3aed' : '#6b7280';
+        const border = recent ? '#a78bfa' : '#9ca3af';
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="background:${color};width:10px;height:10px;border-radius:50%;border:2px solid ${border};box-shadow:0 0 6px ${color}66;${recent ? '' : 'opacity:0.5;'}"></div>`,
+          iconSize: [10, 10], iconAnchor: [5, 5]
+        });
+        L.marker([n.latitude, n.longitude], { icon })
+          .bindPopup(`<b style="color:#1e293b;">${n.title}</b><br><small style="color:#475569;">${n.source || ''}</small>`)
+          .addTo(newsLayer);
+      }
+    });
+    const feedEl = document.getElementById('newsFeed');
+    feedEl.innerHTML = data.data.length === 0
+      ? '<div style="color:#64748b;font-size:12px;">No news yet</div>'
+      : data.data.slice(0, 15).map(n => `<div class="news-item">
+          <a href="${n.url}" target="_blank">${n.title}</a>
+          <div class="meta">${n.source || ''} · ${n.published ? n.published.slice(0,10) : ''}</div>
+        </div>`).join('');
+  } catch(e) { console.error('loadNews', e); }
+}
+
+async function loadSocial() {
+  try {
+    const data = await api('social?limit=50');
+    socialLayer.clearLayers();
+    document.getElementById('socialBadge').textContent = data.total;
+    data.data.forEach(p => {
+      if (p.latitude && p.longitude) {
+        const color = p.platform === 'reddit' ? '#ff4500' : '#0085ff';
+        const icon = L.divIcon({
+          className: '',
+          html: `<div style="background:${color};width:9px;height:9px;border-radius:50%;border:2px solid ${color}88;"></div>`,
+          iconSize: [9, 9], iconAnchor: [4, 4]
+        });
+        L.marker([p.latitude, p.longitude], { icon })
+          .bindPopup(`<b style="color:#1e293b;">${p.platform}</b><br><small style="color:#475569;">${p.content ? p.content.slice(0, 150) : ''}</small>`)
+          .addTo(socialLayer);
+      }
+    });
+    const el = document.getElementById('socialAll');
+    if (!data.data.length) {
+      el.innerHTML = '<div style="color:#64748b;font-size:12px;">No posts yet</div>';
+    } else {
+      el.innerHTML = data.data.slice(0, 15).map(p => {
+        const icon = p.platform === 'reddit' ? '🔴' : '🦋';
+        return `<div class="news-item"><a href="${p.url}" target="_blank">${icon} ${p.content ? p.content.slice(0, 120) + '…' : 'No content'}</a><div class="meta">${p.published ? p.published.slice(0,10) : ''}</div></div>`;
+      }).join('');
+    }
+  } catch(e) { console.error('loadSocial', e); }
+}
+
+async function loadRepeatLocations() {
+  try {
+    const data = await api(`analysis/repeat-locations?${params()}&min_incidents=3&limit=20`);
+    repeatLayer.clearLayers();
+    const warnIcon = L.divIcon({
+      className: '',
+      html: '<div style="background:#ef4444;width:12px;height:12px;border-radius:3px;border:2px solid #fca5a5;transform:rotate(45deg);"></div>',
+      iconSize: [12, 12], iconAnchor: [6, 6]
+    });
+    data.forEach(loc => {
+      if (loc.latitude && loc.longitude) {
+        L.marker([loc.latitude, loc.longitude], { icon: warnIcon })
+          .bindPopup(`<b style="color:#1e293b;">⚠ Repeat Location</b><br><span style="color:#475569;">${loc.address}</span><br><small style="color:#64748b;">${loc.incident_count} incidents</small>`)
+          .addTo(repeatLayer);
+      }
+    });
+    const el = document.getElementById('repeatLocs');
+    el.innerHTML = data.length ? data.map(loc =>
+      `<div class="stat-row"><span class="label">${loc.address}</span><span class="value up">${loc.incident_count}</span></div>`
+    ).join('') : '<div style="color:#64748b;font-size:12px;">No repeat locations</div>';
+  } catch(e) { console.error('loadRepeatLocations', e); }
+}
+
+async function loadWeatherCorrelation() {
+  try {
+    const data = await api(`analysis/weather-correlation?days_back=${Math.max(daysBack(), 90)}`);
+    const el = document.getElementById('weatherCorr');
+    const corr = data.temp_correlation;
+    const corrPct = corr != null ? (corr * 100).toFixed(1) : '--';
+    const corrColor = corr > 0 ? '#ef4444' : corr < 0 ? '#22c55e' : '#94a3b8';
+    const corrLabel = corr > 0.3 ? 'Strong +' : corr > 0.1 ? 'Moderate +' : corr < -0.3 ? 'Strong -' : corr < -0.1 ? 'Moderate -' : 'Weak';
+    let html = `<div class="stat-row"><span class="label">Temp Correlation</span><span class="value" style="color:${corrColor};">${corrLabel} (${corrPct}%)</span></div>`;
+    if (data.avg_by_temp) {
+      Object.entries(data.avg_by_temp).forEach(([bracket, avg]) => {
+        html += `<div class="stat-row"><span class="label">${bracket}</span><span class="value">${avg.toFixed(1)}/day</span></div>`;
+      });
+    }
+    if (data.rain_day_avg != null) {
+      html += `<div class="stat-row"><span class="label">Rainy days</span><span class="value">${data.rain_day_avg.toFixed(1)}</span></div>`;
+      html += `<div class="stat-row"><span class="label">Dry days</span><span class="value">${data.dry_day_avg.toFixed(1)}</span></div>`;
+    }
+    el.innerHTML = html;
+  } catch(e) { console.error('loadWeatherCorrelation', e); }
+}
+
+async function loadCEStats() {
+  try {
+    const data = await api('311/stats');
+    document.getElementById('ceStats').innerHTML = data.length ? data.slice(0, 6).map(t =>
+      `<div class="stat-row"><span class="label">${t.case_type || 'Unknown'}</span><span class="value">${t.count.toLocaleString()}</span></div>`
+    ).join('') : '<div style="color:#64748b;font-size:12px;">No 311 data</div>';
+  } catch(e) { console.error('loadCEStats', e); }
+}
+
+async function loadTypeForecast() {
+  try {
+    const ct = crimeType();
+    const data = await api(`analysis/type-forecast?days_back=730&forecast_days=7${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    const el = document.getElementById('typeForecast');
+    const rising = data.filter(t => t.trend === 'increasing').length;
+    document.getElementById('typeAlertBadge').textContent = rising;
+    document.getElementById('typeAlertBadge').className = rising > 0 ? 'badge badge-red' : 'badge badge-green';
+
+    if (!data.length) {
+      el.innerHTML = '<div style="color:#64748b;font-size:12px;">No type forecast for this filter</div>';
+      return;
+    }
+    let html = '';
+    data.forEach(t => {
+      const arrow = t.trend === 'increasing' ? '▲' : t.trend === 'decreasing' ? '▼' : '→';
+      const color = t.trend === 'increasing' ? '#ef4444' : t.trend === 'decreasing' ? '#22c55e' : '#94a3b8';
+      html += `<div class="stat-row">
+        <span class="label">${t.description}</span>
+        <span class="value" style="color:${color}">${arrow} ${t.pct_change > 0 ? '+' : ''}${t.pct_change}%</span>
+      </div>`;
+      html += `<div style="font-size:10px;color:#64748b;margin:-2px 0 4px 8px;">avg ${t.forecast_avg}/day · R²=${t.test_r2}</div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { console.error('loadTypeForecast', e); }
+}
+
+async function loadEscalationRisk() {
+  try {
+    const ct = crimeType();
+    const dbVal = Math.max(daysBack(), 30);
+    const data = await api(`analysis/escalation-risk?days_back=${dbVal}${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    const el = document.getElementById('escalationRisk');
+    const badge = document.getElementById('escalationBadge');
+    badge.textContent = data.summary.high_risk_count;
+    badge.className = data.summary.high_risk_count > 0 ? 'badge badge-red' : 'badge badge-green';
+
+    let html = `<div class="stat-row"><span class="label">At-risk locations</span><span class="value">${data.summary.total_at_risk}</span></div>`;
+    html += `<div class="stat-row"><span class="label">High risk</span><span class="value" style="color:#ef4444">${data.summary.high_risk_count}</span></div>`;
+    html += `<div class="stat-row"><span class="label">Past escalations</span><span class="value">${data.summary.total_escalations || 0}</span></div>`;
+
+    if (data.at_risk_locations && data.at_risk_locations.length) {
+      html += '<div style="font-size:11px;color:#f87171;margin-top:8px;font-weight:600;">TOP AT-RISK</div>';
+      data.at_risk_locations.slice(0, 6).forEach(loc => {
+        const nn = NPA_NAMES[loc.npa] || ('NPA ' + loc.npa);
+        const col = loc.risk_level === 'high' ? '#ef4444' : '#eab308';
+        html += `<div class="stat-row"><span class="label" title="${loc.address}">${(loc.address || '').substring(0, 30)} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value" style="color:${col}">${loc.property_count} prop</span></div>`;
+      });
+    }
+    el.innerHTML = html;
+  } catch(e) { console.error('loadEscalationRisk', e); }
+}
+
+async function loadUpcomingEvents() {
+  try {
+    const data = await api('analysis/upcoming-events?days_ahead=14');
+    const el = document.getElementById('upcomingEvents');
+    document.getElementById('eventBadge').textContent = data.length;
+    document.getElementById('eventBadge').className = data.length > 5 ? 'badge badge-red' : data.length > 0 ? 'badge badge-yellow' : 'badge badge-green';
+
+    if (!data.length) { el.innerHTML = '<div style="color:#64748b;font-size:12px;">No events in the next 14 days</div>'; return; }
+    const typeIcon = {game:'🏟️',holiday:'🎆',festival:'🎪',tournament:'🏀',race:'🏁',school_break:'🏫'};
+    let html = '';
+    const seen = new Set();
+    data.forEach(e => {
+      const key = e.name + e.event_date;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const icon = typeIcon[e.type] || '📅';
+      const when = e.days_from_now === 0 ? 'Today' : e.days_from_now === 1 ? 'Tomorrow' : `In ${e.days_from_now} days`;
+      html += `<div class="stat-row"><span class="label">${icon} ${e.name}</span><span class="value" style="color:#22d3ee">${when}</span></div>`;
+    });
+    el.innerHTML = html;
+  } catch(e) { console.error('loadUpcomingEvents', e); }
+}
+
+async function loadPatterns() {
+  try {
+    const ct = crimeType();
+    const dbVal = Math.max(daysBack(), 30);
+    const data = await api(`analysis/patterns?days_back=${dbVal}${ct ? '&nibrs_code=' + encodeURIComponent(ct) : ''}`);
+    const el = document.getElementById('detectedPatterns');
+    const total = (data.summary.temporal_count || 0) + (data.summary.drift_count || 0);
+    document.getElementById('patternBadge').textContent = total;
+
+    let html = '';
+    if (data.temporal_patterns && data.temporal_patterns.length) {
+      html += '<div style="font-size:11px;color:#fbbf24;font-weight:600;">RECURRING</div>';
+      data.temporal_patterns.slice(0, 5).forEach(p => {
+        const nn = NPA_NAMES[p.npa] || ('NPA ' + p.npa);
+        html += `<div class="stat-row"><span class="label" title="${p.address}">${p.pattern} <span style="color:#64748b;font-size:10px;">${nn}</span></span><span class="value">${p.incident_count}x</span></div>`;
+      });
+    }
+    if (data.geographic_drift && data.geographic_drift.length) {
+      html += '<div style="font-size:11px;color:#fb923c;margin-top:8px;font-weight:600;">GEOGRAPHIC DRIFT</div>';
+      data.geographic_drift.slice(0, 5).forEach(d => {
+        const nn = NPA_NAMES[d.npa] || ('NPA ' + d.npa);
+        const arrow = {north:'↑',south:'↓',east:'→',west:'←'}[d.direction] || '?';
+        html += `<div class="stat-row"><span class="label">${nn} ${arrow} ${d.direction}</span><span class="value">${d.distance_km}km</span></div>`;
+      });
+    }
+    if (data.mo_patterns && data.mo_patterns.length) {
+      html += '<div style="font-size:11px;color:#a78bfa;margin-top:8px;font-weight:600;">MO GROUPINGS</div>';
+      data.mo_patterns.slice(0, 4).forEach(m => {
+        html += `<div class="stat-row"><span class="label">${m.description} · ${m.place_type}</span><span class="value">${m.count}x ${m.time_pattern}</span></div>`;
+      });
+    }
+    el.innerHTML = html || '<div style="color:#64748b;font-size:12px;">No patterns detected</div>';
+  } catch(e) { console.error('loadPatterns', e); }
+}
+
+// === BRIEFING MODAL ===
+
+function openBriefing() {
+  document.getElementById('briefingModal').classList.add('open');
+  document.getElementById('briefingBody').innerHTML = '<div style="text-align:center;color:#64748b;padding:40px 0;">Generating briefing…</div>';
+  loadBriefing();
+}
+function closeBriefing() { document.getElementById('briefingModal').classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeBriefing(); });
+
+async function loadBriefing() {
+  try {
+    const data = await api('briefing');
+    lastBriefing = data;
+    const alerts = data.critical_alerts || [];
+    const po = data.predictive_outlook || {};
+    const ai = data.area_intelligence || {};
+    const pt = data.patterns_and_trends || {};
+    const mc = data.model_confidence || {};
+    const ev = data.events || {};
+
+    const sections = [];
+
+    if (alerts.length) {
+      sections.push(`<div class="modal-section"><h4>Critical Alerts (${alerts.length})</h4>` +
+        alerts.map(a => `<div class="alert-item ${a.level}"><strong>${a.message}</strong>${a.details ? '<div style="font-size:11px;margin-top:4px;opacity:0.8;">' + a.details.slice(0,3).join(' · ') + '</div>' : ''}</div>`).join('') +
+        '</div>');
+    } else {
+      sections.push('<div class="modal-section"><h4>Critical Alerts</h4><div style="color:#22c55e;font-size:12px;">No critical alerts.</div></div>');
+    }
+
+    sections.push(`<div class="modal-section">
+      <h4>Predictive Outlook (next 7 days)</h4>
+      <div>Trend: <strong style="color:${po.trend==='increasing'?'#ef4444':po.trend==='decreasing'?'#22c55e':'#eab308'}">${(po.trend||'?').toUpperCase()}</strong> · avg ${po.avg_daily || '?'}/day</div>
+      ${(po.high_risk_npas || []).length ? `<div style="margin-top:6px;"><strong style="color:#f97316;font-size:11px;">TOP RISK NPAS</strong><br>${po.high_risk_npas.slice(0,5).map(n => `${NPA_NAMES[n.npa]||('NPA '+n.npa)} <span style="color:${riskColor(n.risk_score)};font-weight:700;">${n.risk_score}</span>`).join(' · ')}</div>` : ''}
+      ${(po.rising_types || []).length ? `<div style="margin-top:6px;"><strong style="color:#ef4444;font-size:11px;">RISING TYPES</strong><br>${po.rising_types.slice(0,4).map(t => `${t.description} +${t.pct_change}%`).join(' · ')}</div>` : ''}
+      ${(po.falling_types || []).length ? `<div style="margin-top:6px;"><strong style="color:#22c55e;font-size:11px;">FALLING TYPES</strong><br>${po.falling_types.slice(0,4).map(t => `${t.description} ${t.pct_change}%`).join(' · ')}</div>` : ''}
+    </div>`);
+
+    if (ai.anomaly_count || ai.escalation_risk) {
+      sections.push(`<div class="modal-section">
+        <h4>Area Intelligence</h4>
+        <div>${ai.anomaly_count || 0} anomalies detected · ${(ai.escalation_risk && ai.escalation_risk.high_risk_count) || 0} escalation risks · ${(ai.emerging_clusters || []).length} emerging clusters</div>
+      </div>`);
+    }
+
+    if (pt.temporal_count || pt.drift_count) {
+      sections.push(`<div class="modal-section">
+        <h4>Patterns &amp; Trends</h4>
+        <div>${pt.temporal_count || 0} recurring patterns · ${pt.drift_count || 0} geographic drifts</div>
+      </div>`);
+    }
+
+    if (ev.event_count) {
+      sections.push(`<div class="modal-section">
+        <h4>Upcoming Events</h4>
+        <div>${ev.event_count} events in next 7 days${(ev.upcoming_events||[]).length ? ': ' + ev.upcoming_events.slice(0,5).map(e => e.name).join(' · ') : ''}</div>
+      </div>`);
+    }
+
+    sections.push(`<div class="modal-section">
+      <h4>Model Confidence</h4>
+      <div>Forecast R² = ${mc.forecast_r2 ?? '?'} (${(mc.status||'?').toUpperCase()}) · Overall clearance: ${data.clearance_rate || '?'}%</div>
+    </div>`);
+
+    document.getElementById('briefingBody').innerHTML = sections.join('');
+    document.getElementById('briefingTimestamp').textContent = `Generated ${new Date(data.generated_at).toLocaleString()}`;
+  } catch(e) {
+    console.error('loadBriefing', e);
+    document.getElementById('briefingBody').innerHTML = `<div style="color:#ef4444;">Briefing failed: ${e.message}</div>`;
+  }
+}
+
+function copyBriefing() {
+  if (!lastBriefing) return;
+  const text = document.getElementById('briefingBody').innerText;
+  navigator.clipboard.writeText(text).then(() => toast('Briefing copied'));
+}
+
+async function refresh() {
+  toast('Refreshing analysis…');
+  await Promise.all([
+    loadIncidents(),
+    loadHotspots(),
+    loadTopAreas(),
+    loadByType(),
+    loadForecast(),
+    loadRiskMap(),
+    loadAnomalies(),
+    loadClusters(),
+    loadClearance(),
+    loadWhatChanged(),
+    loadProximity(),
+    loadVenues(),
+    loadNews(),
+    loadSocial(),
+    loadRepeatLocations(),
+    loadWeatherCorrelation(),
+    loadCEStats(),
+    loadTypeForecast(),
+    loadUpcomingEvents(),
+    loadPatterns(),
+    loadEscalationRisk(),
+  ]);
+  toast('Analysis complete');
+}
+
+async function runIngest() {
+  toast('Ingesting CMPD data…');
+  try {
+    const r = await fetch('/api/ingest?limit=5000', { method: 'POST' });
+    const data = await r.json();
+    toast(`Ingested: ${data.added} added, ${data.skipped} skipped`, 5000);
+    await refresh();
+    loadTypes();
+  } catch(e) { console.error('runIngest', e); toast('Ingest failed'); }
+}
+
+async function runNewsIngest() {
+  toast('Pulling news…');
+  try {
+    const r = await fetch('/api/ingest/news', { method: 'POST' });
+    const data = await r.json();
+    toast(`News: ${data.added} added, ${data.geocoded} geocoded`, 5000);
+    loadNews();
+  } catch(e) { console.error('runNewsIngest', e); toast('News ingest failed'); }
+}
+
+async function runSocialIngest() {
+  toast('Pulling Reddit & Bluesky (~2 min)…');
+  try {
+    const reddit = await fetch('/api/ingest/reddit', { method: 'POST' }).then(r => r.json());
+    const bluesky = await fetch('/api/ingest/bluesky', { method: 'POST' }).then(r => r.json());
+    toast(`Reddit: ${reddit.added} · Bluesky: ${bluesky.added}`, 6000);
+    loadSocial();
+  } catch(e) { console.error('runSocialIngest', e); toast('Social ingest error'); }
+}
+
+async function init() {
+  await loadNpaMeta();
+  await loadTypes();
+  await refresh();
+}
+init();
+</script>
+</body>
+</html>

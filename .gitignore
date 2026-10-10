@@ -3,3 +3,10 @@ venv/
 __pycache__/
 *.pyc
 .DS_Store
+.claude/
+precog.db
+precog.db-journal
+/models/
+*.joblib
+*.meta
+.pytest_cache/
