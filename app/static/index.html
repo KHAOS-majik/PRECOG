@@ -558,7 +558,7 @@ function crimeType() { return document.getElementById('crimeType').value; }
 function npaName(code) {
   if (!code) return 'Unknown';
   const name = NPA_NAMES[String(code)];
-  return name ? `${name} (${code})` : `Area ${code}`;
+  return name ? `Area ${code} · ${name}` : `Area ${code}`;
 }
 
 async function api(path) {
@@ -916,22 +916,21 @@ async function loadClusters() {
     document.getElementById('clusterBadge').textContent = emerging.length;
 
     clusterLayer.clearLayers();
+    // Clusters are visual-only — they must not block clicks on the choropleth below.
     clusters.forEach(c => {
-      const circle = L.circle([c.center_lat, c.center_lon], {
+      L.circle([c.center_lat, c.center_lon], {
         radius: Math.max(c.radius_m, 100),
-        color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.15, weight: 1,
-      });
-      circle.bindPopup(`<b style="color:#1e293b;">Cluster #${c.cluster_id}</b><br><small style="color:#475569;">${c.incident_count} incidents · ${c.unique_addresses} addresses</small>`);
-      circle.addTo(clusterLayer);
+        color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.12, weight: 1,
+        interactive: false,
+      }).addTo(clusterLayer);
     });
 
     emerging.forEach(c => {
-      const circle = L.circle([c.center_lat, c.center_lon], {
+      L.circle([c.center_lat, c.center_lon], {
         radius: Math.max(c.radius_m, 100),
-        color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.25, weight: 2, dashArray: '5,5',
-      });
-      circle.bindPopup(`<b style="color:#dc2626;">EMERGING</b><br><small style="color:#475569;">${c.incident_count} incidents · ${c.daily_rate}/day</small>`);
-      circle.addTo(clusterLayer);
+        color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.18, weight: 2, dashArray: '5,5',
+        interactive: false,
+      }).addTo(clusterLayer);
     });
 
     const el = document.getElementById('clusterList');
