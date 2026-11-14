@@ -216,7 +216,8 @@ def ingest_news():
     total_added = 0
     total_fetched = 0
 
-    for query in SEARCH_QUERIES:
+    # The plain search returns stories of any age; the dated one keeps this week's from being crowded out.
+    for query in SEARCH_QUERIES + [f"{q} when:7d" for q in SEARCH_QUERIES]:
         print(f"  Searching: {query}")
         try:
             articles = fetch_google_news(query)

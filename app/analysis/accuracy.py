@@ -204,6 +204,14 @@ def _avg(values):
     return round(sum(values) / len(values), 1) if values else None
 
 
+def _pct_accuracy(pairs):
+    """100 minus the average percentage miss, over (predicted, actual) pairs."""
+    pairs = [(p, a) for p, a in pairs if a]
+    if not pairs:
+        return None
+    return round(100 - sum(abs(p - a) / a for p, a in pairs) / len(pairs) * 100, 1)
+
+
 def accuracy_report():
     from app.analysis.npa_labels import get_npa_labels, label_for
 
@@ -247,8 +255,17 @@ def accuracy_report():
             for a in pred["top_areas"]
         ]
         base["busiest_areas"] = [area(a, {"actual": res["area_actuals"].get(a, 0)}) for a in pred["busiest_areas"]]
+        days = [d for d in res["forecast"] if d["actual"]]
+        naive = pred["naive_daily"]
+        base["predicted_total"] = round(sum(d["predicted"] for d in res["forecast"]))
+        base["daily_accuracy"] = _pct_accuracy([(d["predicted"], d["actual"]) for d in days])
+        base["weekly_accuracy"] = _pct_accuracy([(base["predicted_total"], res["total_incidents"])]) if days else None
+        base["_days"] = [(d["predicted"], d["actual"], naive) for d in days]
+        base["_naive_week"] = (naive * 7, res["total_incidents"])
         scored.append(base)
 
+    all_days = [d for w in scored for d in w.pop("_days")]
+    naive_weeks = [w.pop("_naive_week") for w in scored]
     raised = sum(w["alerts_raised"] for w in scored)
     confirmed = sum(w["alerts_confirmed"] for w in scored)
     both = [w for w in scored if w["precog_share"] is not None and w["busiest_share"] is not None]
@@ -259,6 +276,15 @@ def accuracy_report():
         "top_n": TOP_N,
         "summary": {
             "weeks_scored": len(scored),
+            "daily_accuracy": _pct_accuracy([(p, a) for p, a, _ in all_days]),
+            "naive_daily_accuracy": _pct_accuracy([(n, a) for _, a, n in all_days]),
+            "days_scored": len(all_days),
+            "days_within_10pct": sum(1 for p, a, _ in all_days if abs(p - a) <= 0.10 * a),
+            "weekly_accuracy": _pct_accuracy([(w["predicted_total"], w["total_incidents"]) for w in fc]),
+            "naive_weekly_accuracy": _pct_accuracy(naive_weeks),
+            "worst_week_miss_pct": max((round(abs(w["predicted_total"] - w["total_incidents"]) / w["total_incidents"] * 100, 1) for w in fc), default=None),
+            "precog_overlap": _avg(w["precog_overlap"] for w in scored),
+            "busiest_overlap": _avg(w["busiest_overlap"] for w in scored),
             "live_weeks": sum(1 for w in scored if w["mode"] == "live"),
             "precog_share": _avg(w["precog_share"] for w in both),
             "busiest_share": _avg(w["busiest_share"] for w in both),

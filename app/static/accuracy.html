@@ -25,7 +25,7 @@
   .lede strong { color: var(--strong); font-weight: 600; }
   h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); font-weight: 600; margin-bottom: 12px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
-  .verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+  .verdicts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
   .verdict { display: flex; flex-direction: column; gap: 10px; }
   .verdict .q { font-size: 15px; font-weight: 600; color: var(--strong); }
   .chip { align-self: flex-start; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.3px; }
@@ -41,6 +41,8 @@
   .pair .num.other { color: var(--compare); }
   .pair .lbl { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
   .verdict p { font-size: 13px; color: var(--muted); }
+  .big { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .big.good { color: var(--good); } .big.bad { color: var(--bad); } .big.even { color: var(--even); }
   .chart-wrap { position: relative; height: 260px; }
   .two-col { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
   .scroll { overflow-x: auto; }
@@ -68,7 +70,7 @@
 
 <div class="header">
   <h1>PRECOG <span>Accuracy record</span></h1>
-  <div class="meta"><span id="through"></span><a href="/">Back to map</a></div>
+  <div class="meta"><span id="through"></span><a href="/news-check">News check</a><a href="/">Back to map</a></div>
 </div>
 
 <main id="main">
@@ -84,25 +86,6 @@ function h(tag, attrs, ...kids) {
   Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'class') e.className = v; else e.setAttribute(k, v); });
   kids.flat().forEach(k => { if (k != null) e.append(k.nodeType ? k : document.createTextNode(String(k))); });
   return e;
-}
-
-// "Ahead" needs a margin so a rounding-error lead doesn't read as a win.
-function standing(precog, other, higherIsBetter) {
-  if (precog == null || other == null) return ['even', 'Not enough data'];
-  const edge = (higherIsBetter ? precog - other : other - precog) / other;
-  if (edge > 0.03) return ['ahead', 'Ahead of the simple guess'];
-  if (edge < -0.03) return ['behind', 'Behind the simple guess'];
-  return ['even', 'About the same as the simple guess'];
-}
-
-function verdictCard(question, state, left, right, text) {
-  return h('div', { class: 'card verdict' },
-    h('div', { class: 'q' }, question),
-    h('span', { class: 'chip ' + state[0] }, state[1]),
-    h('div', { class: 'pair' },
-      h('div', null, h('div', { class: 'num precog' }, left[0]), h('div', { class: 'lbl' }, left[1])),
-      h('div', null, h('div', { class: 'num other' }, right[0]), h('div', { class: 'lbl' }, right[1]))),
-    h('p', null, text));
 }
 
 function modeChip(mode) {
@@ -146,59 +129,61 @@ function render(data) {
     return;
   }
 
+  const last = data.scored[0];
   main.append(h('p', { class: 'lede' },
-    'Every week Precog says where crime will concentrate, how many incidents to expect each day, and which areas are spiking. This page checks each of those against what CMPD reported afterwards, across the last ',
-    h('strong', null, `${s.weeks_scored} weeks`),
-    ', and puts each next to a simple guess anyone could make without Precog.'));
+    'Each week Precog predicts how many incidents Charlotte will see and where. This page compares those predictions with what CMPD reported afterwards, over the last ',
+    h('strong', null, `${s.weeks_scored} weeks`), '. 100% would mean the prediction matched exactly.'));
 
-  const avg = s.avg_daily ? ` Charlotte averages about ${Math.round(s.avg_daily)} reported incidents a day.` : '';
+  const plain = (title, big, tone, lines) => h('div', { class: 'card verdict' },
+    h('div', { class: 'q' }, title),
+    h('div', { class: 'big ' + tone }, big),
+    lines.map(t => h('p', null, t)));
+  const tone = (mine, theirs, margin = 0.01) => mine == null || theirs == null ? 'even' : mine > theirs * (1 + margin) ? 'good' : mine < theirs * (1 - margin) ? 'bad' : 'even';
   main.append(h('div', { class: 'verdicts' },
-    verdictCard('Did the flagged areas get the crime?', standing(s.precog_share, s.busiest_share, true),
-      [`${s.precog_share}%`, `Precog's top ${data.top_n}`], [`${s.busiest_share}%`, `Last month's busiest ${data.top_n}`],
-      `Share of the following week's incidents that landed in the ${data.top_n} areas each method picked. Precog did better in ${s.area_weeks_won} of ${s.area_weeks} weeks.`),
-    verdictCard('How close was the daily forecast?', standing(s.forecast_mae, s.naive_mae, false),
-      [s.forecast_mae, 'Precog off by, per day'], [s.naive_mae, 'Last-week average off by'],
-      `Average gap between predicted and reported incidents per day. Precog was closer in ${s.forecast_weeks_won} of ${s.forecast_weeks} weeks.${avg}`),
-    verdictCard('Were the spike alerts followed by more crime?', standing(s.alert_rate, s.any_area_rate, true),
-      [`${s.alert_rate ?? '–'}%`, 'Alerted areas'], [`${s.any_area_rate ?? '–'}%`, 'Any area'],
-      `Share of areas that had a busier-than-usual week. ${s.alerts_confirmed} of ${s.alerts_raised} alerted areas did; the second number is how often that happens to any area with no alert.`)));
+    plain('Day to day: how many incidents', `${s.daily_accuracy}% accurate`, tone(s.daily_accuracy, s.naive_daily_accuracy), [
+      `On a typical day Precog is off by about ${Math.round(s.forecast_mae)} incidents out of roughly ${Math.round(s.avg_daily)}. ${s.days_within_10pct} of ${s.days_scored} days landed within 10% of the real count.`,
+      `Without Precog: assuming each day matches last week's average is ${s.naive_daily_accuracy}% accurate.`]),
+    plain('Week to week: the weekly total', `${s.weekly_accuracy}% accurate`, tone(s.weekly_accuracy, s.naive_weekly_accuracy), [
+      `Last scored week Precog predicted ${last.predicted_total.toLocaleString()} incidents and CMPD reported ${last.total_incidents.toLocaleString()}. The worst week was off by ${s.worst_week_miss_pct}%.`,
+      `Without Precog: assuming next week matches last week is ${s.naive_weekly_accuracy}% accurate.`]),
+    plain('Where it happens: the busiest areas', `${s.precog_overlap} of ${data.top_n} right`, tone(s.precog_overlap, s.busiest_overlap), [
+      `Each week Precog flags ${data.top_n} areas. On average ${s.precog_overlap} of them turn out to be among the ${data.top_n} areas with the most incidents.`,
+      `Without Precog: picking last month's ${data.top_n} busiest areas gets ${s.busiest_overlap} right. This is Precog's weak spot.`]),
+    plain('Spike alerts: did trouble follow', `${s.alerts_confirmed} of ${s.alerts_raised} held up`, tone(s.alert_rate, s.any_area_rate, 0.10), [
+      `An alert holds up when the area then has a busier week than usual. ${s.alert_rate}% did.`,
+      `Without Precog: ${s.any_area_rate}% of all areas have a busier week than usual anyway, so the alerts are not yet telling you much.`])));
 
   const weeks = data.scored.slice().reverse();
   const days = weeks.flatMap(w => w.forecast);
   const fcCanvas = h('canvas', { 'aria-label': 'Predicted versus reported incidents per day' });
-  const shareCanvas = h('canvas', { 'aria-label': 'Share of incidents in flagged areas, by week' });
+  const shareCanvas = h('canvas', { 'aria-label': 'Flagged areas that were among the busiest, by week' });
   main.append(h('div', { class: 'two-col' },
     h('div', { class: 'card' }, h('h2', null, 'Daily forecast vs reported'), h('div', { class: 'chart-wrap' }, fcCanvas)),
-    h('div', { class: 'card' }, h('h2', null, `Incidents caught by the top ${data.top_n} areas`), h('div', { class: 'chart-wrap' }, shareCanvas))));
+    h('div', { class: 'card' }, h('h2', null, `Flagged areas that were right, out of ${data.top_n}`), h('div', { class: 'chart-wrap' }, shareCanvas))));
   lineChart(fcCanvas, days.map(d => fmtDay(d.date)), [
     { label: 'Reported', data: days.map(d => d.actual), borderColor: css.getPropertyValue('--strong').trim(), pointRadius: 0 },
     { label: 'Precog forecast', data: days.map(d => d.predicted), borderColor: accent, borderDash: [5, 3], pointRadius: 0 },
   ], 'Incidents per day');
   lineChart(shareCanvas, weeks.map(w => fmtDay(w.week_start)), [
-    { label: 'Precog', data: weeks.map(w => w.precog_share), borderColor: accent },
-    { label: "Last month's busiest", data: weeks.map(w => w.busiest_share), borderColor: compare },
-  ], '% of week\'s incidents');
+    { label: 'Precog', data: weeks.map(w => w.precog_overlap), borderColor: accent },
+    { label: "Last month's busiest", data: weeks.map(w => w.busiest_overlap), borderColor: compare },
+  ], 'Areas right');
 
-  const cell = (mine, theirs, higherIsBetter, text) => {
-    const cls = mine == null || theirs == null || mine === theirs ? 'muted' : ((higherIsBetter ? mine > theirs : mine < theirs) ? 'win' : 'loss');
-    return h('td', { class: cls }, text);
-  };
   main.append(h('div', { class: 'card' },
     h('h2', null, 'Week by week'),
     h('div', { class: 'scroll' }, h('table', null,
       h('thead', null, h('tr', null,
-        ['Week', 'Incidents', 'Areas: Precog', 'Areas: busiest', 'Forecast off by', 'Simple guess off by', 'Alerts confirmed', 'Prediction'].map(t => h('th', null, t)))),
+        ['Week', 'Predicted', 'Reported', 'Weekly accuracy', 'Daily accuracy', `Areas right (of ${data.top_n})`, 'Alerts held up', 'Prediction'].map(t => h('th', null, t)))),
       h('tbody', null, data.scored.map(w => h('tr', null,
         h('td', null, weekLabel(w)),
-        h('td', { class: 'muted' }, w.total_incidents.toLocaleString()),
-        cell(w.precog_share, w.busiest_share, true, `${w.precog_share}%`),
-        h('td', { class: 'muted' }, `${w.busiest_share}%`),
-        cell(w.forecast_mae, w.naive_mae, false, w.forecast_mae ?? '–'),
-        h('td', { class: 'muted' }, w.naive_mae ?? '–'),
+        h('td', null, w.predicted_total.toLocaleString()),
+        h('td', null, w.total_incidents.toLocaleString()),
+        h('td', null, `${w.weekly_accuracy}%`),
+        h('td', null, `${w.daily_accuracy}%`),
+        h('td', { class: w.precog_overlap > w.busiest_overlap ? 'win' : w.precog_overlap < w.busiest_overlap ? 'loss' : 'muted', title: `Simple guess got ${w.busiest_overlap}` }, w.precog_overlap),
         h('td', { class: 'muted' }, `${w.alerts_confirmed} of ${w.alerts_raised}`),
         h('td', null, modeChip(w.mode)))))))));
 
-  const last = data.scored[0];
   main.append(h('div', { class: 'two-col' },
     h('div', { class: 'card' },
       h('h2', null, `What Precog flagged for ${weekLabel(last)}`),
@@ -224,7 +209,8 @@ function render(data) {
     h('h2', null, 'How the scoring works'),
     h('p', null, h('strong', null, 'Weeks run Monday to Sunday. '), 'Before each week, Precog\'s top areas, daily forecast and spike alerts are saved. The server checks CMPD every hour, and a week is scored two days after it ends, because CMPD keeps adding reports for about that long.'),
     h('p', null, h('strong', null, 'Live vs reconstructed. '), '"Live" predictions were saved before the week began and cannot be changed afterwards. "Reconstructed" ones were rebuilt later, with everything dated on or after that Monday hidden from the models. They are a fair test, but only live weeks are proof.'),
-    h('p', null, h('strong', null, 'The simple guesses. '), 'For areas: the busiest areas of the previous four weeks. For the daily count: the average of the previous seven days. For alerts: how often any area has a week above its own eight-week average. If Precog cannot beat these, it is not adding anything.')));
+    h('p', null, h('strong', null, 'What "accurate" means. '), 'For counts, 93% accurate means the prediction was off by 7% of the real number on average. For areas, a flagged area is "right" when it ends up among the busiest that week.'),
+    h('p', null, h('strong', null, 'Why "without Precog" is shown. '), 'Crime counts are steady from week to week, so even a rough guess scores high. Green means Precog beat the guess anyone could make, red means it did not, yellow means about the same.')));
 }
 
 fetch('/api/accuracy')

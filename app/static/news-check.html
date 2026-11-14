@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Precog · News check</title>
+<style>
+  :root {
+    --bg: #0a0e17; --panel: #111827; --inset: #0f172a; --line: #1e293b; --line-2: #334155;
+    --fg: #e0e6f0; --strong: #f1f5f9; --muted: #94a3b8; --dim: #64748b;
+    --accent: #60a5fa; --good: #22c55e; --bad: #ef4444; --even: #eab308;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--fg); font-size: 14px; line-height: 1.5; }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .header { background: var(--panel); border-bottom: 1px solid var(--line); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .header h1 { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+  .header h1 span { color: var(--muted); font-weight: 500; letter-spacing: 0; font-size: 15px; margin-left: 10px; }
+  .header .meta { font-size: 13px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .header .meta a { text-decoration: none; font-weight: 600; }
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 56px; display: flex; flex-direction: column; gap: 20px; }
+  .lede { font-size: 15px; color: var(--muted); max-width: 72ch; }
+  .lede strong { color: var(--strong); font-weight: 600; }
+  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); font-weight: 600; margin-bottom: 4px; }
+  .sub { font-size: 13px; color: var(--muted); margin-bottom: 12px; max-width: 80ch; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .tile .big { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; margin: 6px 0; }
+  .tile .big.good { color: var(--good); } .tile .big.bad { color: var(--bad); } .tile .big.even { color: var(--even); } .tile .big.plain { color: var(--accent); }
+  .tile .q { font-size: 15px; font-weight: 600; color: var(--strong); }
+  .tile p { font-size: 13px; color: var(--muted); }
+  .rows { list-style: none; display: flex; flex-direction: column; }
+  .rows li { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .rows li.single { grid-template-columns: 1fr; }
+  .rows li:last-child { border-bottom: none; }
+  .rows .story a { color: var(--strong); text-decoration: none; font-weight: 500; }
+  .rows .story a:hover { text-decoration: underline; }
+  .rows .small { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .rows .report { font-size: 13px; }
+  .rows .report strong { color: var(--strong); font-weight: 600; }
+  .chip { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; margin-right: 6px; }
+  .chip.strong { background: #14532d; color: #86efac; }
+  .chip.likely { background: #713f12; color: #fde68a; }
+  .chip.type { background: var(--line); color: var(--muted); }
+  .how p { color: var(--muted); max-width: 78ch; margin-bottom: 10px; }
+  .how p:last-child { margin-bottom: 0; }
+  .how strong { color: var(--strong); font-weight: 600; }
+  .empty { color: var(--muted); padding: 24px 0; text-align: center; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 8px; }
+  @media (max-width: 700px) { .rows li { grid-template-columns: 1fr; gap: 6px; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PRECOG <span>News check</span></h1>
+  <div class="meta"><span id="through"></span><a href="/accuracy">Accuracy record</a><a href="/">Back to map</a></div>
+</div>
+
+<main id="main"><div class="empty">Comparing news stories with police reports…</div></main>
+
+<script>
+const fmtDay = iso => new Date(iso + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => { if (k === 'class') e.className = v; else e.setAttribute(k, v); });
+  kids.flat().forEach(k => { if (k != null) e.append(k.nodeType ? k : document.createTextNode(String(k))); });
+  return e;
+}
+
+// Article links come from an outside feed; only follow real web addresses.
+const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '#';
+
+function story(a) {
+  return h('div', { class: 'story' },
+    h('a', { href: safeUrl(a.url), target: '_blank', rel: 'noopener noreferrer' }, a.title),
+    h('div', { class: 'small' }, h('span', { class: 'chip type' }, a.category), `${a.source || 'Unknown outlet'} · ${fmtDay(a.published)} · headline says: ${a.looked_for}`));
+}
+
+function listCard(title, sub, items, renderItem, previewCount = 8) {
+  const card = h('div', { class: 'card' }, h('h2', null, title), h('div', { class: 'sub' }, sub));
+  if (!items.length) { card.append(h('div', { class: 'empty' }, 'None in this period.')); return card; }
+  card.append(h('ul', { class: 'rows' }, items.slice(0, previewCount).map(renderItem)));
+  if (items.length > previewCount) {
+    card.append(h('details', null, h('summary', null, `Show ${items.length - previewCount} more`),
+      h('ul', { class: 'rows' }, items.slice(previewCount).map(renderItem))));
+  }
+  return card;
+}
+
+function render(data) {
+  const main = document.getElementById('main');
+  main.replaceChildren();
+  const s = data.summary;
+  if (!data.data_through) { main.append(h('div', { class: 'empty' }, 'No police data has been loaded yet.')); return; }
+  document.getElementById('through').textContent =
+    `Police data through ${fmtDay(data.data_through)}` + (data.newest_article ? ` · newest story ${fmtDay(data.newest_article)}` : '');
+
+  const skippedTotal = Object.values(data.skipped).reduce((a, b) => a + b, 0);
+  main.append(h('p', { class: 'lede' },
+    'Precog\'s predictions are built on CMPD incident reports. This page checks those reports against Charlotte news coverage from the last ',
+    h('strong', null, `${data.window_days} days`),
+    `: of ${s.articles} stories collected, ${s.incident_stories} describe a specific new incident and were compared with police reports.`));
+
+  const tile = (q, big, tone, text) => h('div', { class: 'card tile' }, h('div', { class: 'q' }, q), h('div', { class: 'big ' + tone }, big), h('p', null, text));
+  main.append(h('div', { class: 'tiles' },
+    tile('Lined up with a police report', `${s.matched} of ${s.incident_stories}`, 'good',
+      `Stories where the crime type, the day and the location in the headline point to one CMPD report. They cover ${s.distinct_reports} separate reports.`),
+    tile('In the news, not in police data', s.news_only, s.news_only ? 'bad' : 'good',
+      'No CMPD report of that type, in that part of town, on those days. Worth a look: the police feed may be missing or coding these differently.'),
+    tile('Could not tell which report', s.undecided, 'even',
+      'More than one police report fits, usually because the headline gives no location. Counted as neither a match nor a miss.'),
+    tile('Murders that made the news', `${s.murders_covered} of ${s.murders}`, 'plain',
+      'CMPD murder reports in this period with at least one matching story. The rest were either not covered or could not be pinned to a headline.')));
+
+  main.append(listCard('In the news, not in police data',
+    'Each of these was checked against every CMPD report of the same type from the two days before the story ran.',
+    data.news_only, a => h('li', { class: 'single' }, story(a))));
+
+  main.append(listCard('Lined up with a police report',
+    '"Strong" means the headline named a street, neighbourhood or landmark. "Likely" means it only named a side of town.',
+    data.matched, a => h('li', null, story(a),
+      h('div', { class: 'report' },
+        h('span', { class: 'chip ' + a.confidence.toLowerCase() }, a.confidence),
+        h('strong', null, a.incident.offense), ` · ${a.incident.address || 'address withheld'}`,
+        h('div', { class: 'small' }, `${fmtDay(a.incident.date)} · ${a.incident.division || 'no division'} division · report ${a.incident.id}`)))));
+
+  main.append(listCard('Could not tell which report',
+    'Shown so you can see what the check could not settle.',
+    data.undecided, a => h('li', null, story(a),
+      h('div', { class: 'report' }, a.candidates === 1
+        ? '1 police report fits, but the headline gives no location to confirm it'
+        : `${a.candidates} police reports fit this headline`)), 5));
+
+  const reasons = Object.entries(data.skipped).sort((a, b) => b[1] - a[1]).map(([r, n]) => `${n} ${r.toLowerCase()}`).join(', ');
+  main.append(h('div', { class: 'card how' },
+    h('h2', null, 'How the check works'),
+    h('p', null, h('strong', null, 'Where the stories come from. '), 'Google News searches for Charlotte crime, refreshed every hour, covering WBTV, WCNC, WSOC, Queen City News, the Charlotte Observer and others. Only headlines are available, not the full articles.'),
+    h('p', null, h('strong', null, 'What counts as a match. '), 'The headline\'s crime type must match the police report, the report must be dated within two days before the story, and the location must agree. When that still leaves more than one report, the story is listed as undecided instead of guessed.'),
+    h('p', null, h('strong', null, 'What is left out. '), `${skippedTotal} stories were not compared: ${reasons}. Stories from the last three days wait until CMPD has published those days${s.too_recent ? ` (${s.too_recent} waiting now)` : ''}.`),
+    h('p', null, h('strong', null, 'Limits. '), 'This works for serious crimes that make headlines: homicides, shootings, robberies. Most thefts and assaults are never reported in the news, so they cannot be checked this way.')));
+}
+
+fetch('/api/news-check')
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(() => { document.getElementById('main').replaceChildren(h('div', { class: 'empty' }, 'The news check could not be loaded. Check that the server is running, then reload.')); });
+</script>
+</body>
+</html>

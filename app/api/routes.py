@@ -605,6 +605,12 @@ def get_accuracy():
     return accuracy_report()
 
 
+@router.get("/news-check")
+def get_news_check():
+    from app.analysis.news_check import news_check_report
+    return news_check_report()
+
+
 @router.get("/status")
 def get_status():
     from app.clock import data_through

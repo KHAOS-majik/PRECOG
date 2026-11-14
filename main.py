@@ -47,7 +47,7 @@ async def lifespan(app):
     init_accuracy_db()
     if os.getenv("PRECOG_AUTO_REFRESH", "1") != "0":
         threading.Thread(target=run_loop, args=(_stop_event,), daemon=True).start()
-        print("[startup] hourly CMPD refresh + accuracy scoring started (PRECOG_AUTO_REFRESH=0 to disable)")
+        print("[startup] hourly CMPD + news refresh and accuracy scoring started (PRECOG_AUTO_REFRESH=0 to disable)")
     if os.getenv("ENABLE_AUTO_INGEST", "0") == "1":
         t = threading.Thread(target=_auto_ingest_loop, daemon=True)
         t.start()
@@ -70,6 +70,11 @@ _NO_CACHE = {"Cache-Control": "no-cache"}
 @app.get("/")
 def index():
     return FileResponse("app/static/index.html", headers=_NO_CACHE)
+
+
+@app.get("/news-check")
+def news_check_page():
+    return FileResponse("app/static/news-check.html", headers=_NO_CACHE)
 
 
 @app.get("/accuracy")
