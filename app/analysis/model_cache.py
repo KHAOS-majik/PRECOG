@@ -2,6 +2,7 @@ import os
 import hashlib
 import time
 import joblib
+from app.clock import current_as_of
 
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "models")
 
@@ -21,6 +22,11 @@ def _meta_path(key):
 
 
 def get_or_train(key, train_fn, max_age_hours=6):
+    if current_as_of() is not None:
+        # Reconstructed past runs must never read or overwrite the live cache.
+        model, meta = train_fn()
+        meta["from_cache"] = False
+        return model, meta
     _ensure_dir()
     cp = _cache_path(key)
     mp = _meta_path(key)

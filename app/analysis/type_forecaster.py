@@ -6,6 +6,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from app.analysis.features import build_daily_features, to_feature_vector, build_future_features, FEATURE_NAMES
 from app.analysis.model_cache import get_or_train
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 TOP_CRIME_TYPES = [
     ("23F", "Theft From Motor Vehicle"),
@@ -102,7 +103,7 @@ def type_forecast_by_npa(nibrs_code, days_back=365, top_n=10):
     """Which NPAs are seeing the most of a given crime type, and trending."""
     session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = ref_now()
         cutoff = now - timedelta(days=days_back)
         mid = now - timedelta(days=days_back // 2)
 

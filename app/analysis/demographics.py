@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 NPA_POPULATION = {
     "3": 4200, "5": 3800, "8": 5100, "10": 4800, "15": 6200,
@@ -29,7 +30,7 @@ NPA_POPULATION = {
 def per_capita_rates(days_back=90, per=1000):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(
                 Incident.npa,

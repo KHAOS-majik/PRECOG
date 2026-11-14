@@ -11,6 +11,8 @@ from app.models.news import init_news_db
 from app.models.weather import init_weather_db
 from app.models.service_request import init_sr_db
 from app.models.social import init_social_db
+from app.models.accuracy import init_accuracy_db
+from app.refresh import run_loop
 from app.api.routes import router
 
 _stop_event = threading.Event()
@@ -42,12 +44,16 @@ async def lifespan(app):
     init_weather_db()
     init_sr_db()
     init_social_db()
+    init_accuracy_db()
+    if os.getenv("PRECOG_AUTO_REFRESH", "1") != "0":
+        threading.Thread(target=run_loop, args=(_stop_event,), daemon=True).start()
+        print("[startup] hourly CMPD refresh + accuracy scoring started (PRECOG_AUTO_REFRESH=0 to disable)")
     if os.getenv("ENABLE_AUTO_INGEST", "0") == "1":
         t = threading.Thread(target=_auto_ingest_loop, daemon=True)
         t.start()
-        print("[startup] auto-ingest thread started")
+        print("[startup] social/news auto-ingest thread started")
     else:
-        print("[startup] auto-ingest disabled (set ENABLE_AUTO_INGEST=1 to enable)")
+        print("[startup] social/news auto-ingest disabled (set ENABLE_AUTO_INGEST=1 to enable)")
     yield
     _stop_event.set()
 
@@ -57,9 +63,18 @@ app.include_router(router, prefix="/api")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 
+# Pages revalidate on every load so an edit is never hidden behind a cached copy.
+_NO_CACHE = {"Cache-Control": "no-cache"}
+
+
 @app.get("/")
 def index():
-    return FileResponse("app/static/index.html")
+    return FileResponse("app/static/index.html", headers=_NO_CACHE)
+
+
+@app.get("/accuracy")
+def accuracy_page():
+    return FileResponse("app/static/accuracy.html", headers=_NO_CACHE)
 
 
 if __name__ == "__main__":

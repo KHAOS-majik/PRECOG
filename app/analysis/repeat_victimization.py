@@ -1,12 +1,13 @@
 from sqlalchemy import func, case
 from datetime import datetime, timedelta
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def get_repeat_locations(days_back=90, min_incidents=3, limit=50, nibrs_code=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             Incident.address,
             Incident.latitude,
@@ -53,7 +54,7 @@ def get_repeat_locations(days_back=90, min_incidents=3, limit=50, nibrs_code=Non
 def get_repeat_location_details(address, days_back=365):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(Incident)
             .filter(
@@ -81,7 +82,7 @@ def get_weather_crime_correlation(days_back=365):
     from app.models.weather import DailyWeather
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(
                 func.date(Incident.date_reported).label("day"),

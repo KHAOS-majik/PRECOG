@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def what_changed(days_back=30, nibrs_code=None, compare="period", compare_n=1):
     session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = ref_now()
 
         if compare == "day":
             span = compare_n

@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 from sqlalchemy import func, case
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def clearance_rates(days_back=365, nibrs_code=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
 
         q = session.query(
             Incident.nibrs_code,
@@ -89,7 +90,7 @@ def clearance_rates(days_back=365, nibrs_code=None):
 def clearance_time_analysis(days_back=365):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(
                 Incident.nibrs_code,

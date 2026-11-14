@@ -4,6 +4,7 @@ from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
 from app.models.weather import DailyWeather
 from app.models.service_request import ServiceRequest
+from app.clock import ref_now
 
 US_HOLIDAYS = {
     (1, 1), (1, 15), (2, 19), (5, 27), (6, 19),
@@ -24,7 +25,7 @@ def _is_holiday(d):
 def build_daily_features(days_back=365, nibrs_code=None, npa=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
 
         q = session.query(
             func.date(Incident.date_reported).label("day"),
@@ -138,7 +139,7 @@ def build_future_features(last_rec, recent_counts, forecast_list, day_offset):
 def get_311_density_by_npa(days_back=90):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(ServiceRequest.npa, func.count().label("count"))
             .filter(ServiceRequest.date_created >= cutoff, ServiceRequest.npa.isnot(None))

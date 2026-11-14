@@ -4,6 +4,7 @@ from collections import defaultdict, Counter
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
 from app.analysis.model_cache import get_or_train
+from app.clock import ref_now
 
 
 def detect_temporal_patterns(days_back=180, min_occurrences=3, nibrs_code=None):
@@ -13,7 +14,7 @@ def detect_temporal_patterns(days_back=180, min_occurrences=3, nibrs_code=None):
     def build():
         session = SessionLocal()
         try:
-            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            cutoff = ref_now() - timedelta(days=days_back)
             q = session.query(
                 Incident.address, Incident.npa,
                 Incident.nibrs_code, Incident.nibrs_offense_description,
@@ -94,7 +95,7 @@ def detect_geographic_drift(days_back=180, min_cluster_size=10, nibrs_code=None)
     """Track if crime cluster centers are moving over time."""
     session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = ref_now()
         cutoff = now - timedelta(days=days_back)
         mid = now - timedelta(days=days_back // 2)
 
@@ -174,7 +175,7 @@ def detect_mo_patterns(days_back=90, min_group=5, nibrs_code=None):
     """Group incidents by type + place_type + time_of_week to find operationally similar patterns."""
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             Incident.nibrs_code, Incident.nibrs_offense_description,
             Incident.place_type_description, Incident.date_reported,

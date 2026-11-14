@@ -6,6 +6,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from app.analysis.features import build_daily_features, to_feature_vector, build_future_features, FEATURE_NAMES
 from app.analysis.model_cache import get_or_train
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 TEST_DAYS = 30
 TOP_NPAS = 40
@@ -94,7 +95,7 @@ def forecast_ml(days_back=365, forecast_days=14, nibrs_code=None):
 def _get_top_npas(days_back=365):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(Incident.npa, func.count().label("c"))
             .filter(Incident.date_reported >= cutoff, Incident.npa.isnot(None))
@@ -111,7 +112,7 @@ def _get_top_npas(days_back=365):
 def _npa_daily_counts(days_back=365):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(
                 Incident.npa,

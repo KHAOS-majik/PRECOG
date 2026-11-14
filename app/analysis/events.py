@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 CHARLOTTE_VENUES = {
     "Bank of America Stadium": {"lat": 35.2258, "lon": -80.8528, "radius_km": 0.8,
@@ -23,7 +24,7 @@ CHARLOTTE_VENUES = {
 def venue_crime_analysis(days_back=365, nibrs_code=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             Incident.latitude, Incident.longitude,
             Incident.date_reported, Incident.nibrs_code,

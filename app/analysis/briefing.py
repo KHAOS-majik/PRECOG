@@ -12,6 +12,7 @@ from app.analysis.patterns import detect_temporal_patterns, detect_geographic_dr
 from app.models.weather import DailyWeather
 from app.models.incident import SessionLocal
 from sqlalchemy import func
+from app.clock import ref_now
 
 
 def generate_briefing():

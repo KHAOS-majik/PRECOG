@@ -30,6 +30,7 @@ from app.analysis.patterns import get_all_patterns
 from app.ingestion.reddit import ingest_reddit
 from app.ingestion.bluesky import ingest_bluesky
 from app.models.social import SocialPost, init_social_db
+from app.clock import ref_now
 
 router = APIRouter()
 
@@ -47,7 +48,7 @@ def list_incidents(
     try:
         q = session.query(Incident)
         if days_back:
-            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            cutoff = ref_now() - timedelta(days=days_back)
             q = q.filter(Incident.date_reported >= cutoff)
         if nibrs_code:
             q = q.filter(Incident.nibrs_code == nibrs_code)
@@ -132,7 +133,7 @@ def stats_by_division(
             func.count().label("count"),
         )
         if days_back:
-            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            cutoff = ref_now() - timedelta(days=days_back)
             q = q.filter(Incident.date_reported >= cutoff)
         if nibrs_code:
             q = q.filter(Incident.nibrs_code == nibrs_code)
@@ -149,7 +150,7 @@ def get_area_summary(
 ):
     session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = ref_now()
         cur_cutoff = now - timedelta(days=days_back)
         prev_cutoff = now - timedelta(days=days_back * 2)
 
@@ -340,7 +341,7 @@ def list_311(
     try:
         q = session.query(ServiceRequest)
         if days_back:
-            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            cutoff = ref_now() - timedelta(days=days_back)
             q = q.filter(ServiceRequest.date_created >= cutoff)
         if case_type:
             q = q.filter(ServiceRequest.case_type == case_type)
@@ -596,6 +597,26 @@ def get_venues(
     nibrs_code: Optional[str] = None,
 ):
     return venue_crime_analysis(days_back=days_back, nibrs_code=nibrs_code)
+
+
+@router.get("/accuracy")
+def get_accuracy():
+    from app.analysis.accuracy import accuracy_report
+    return accuracy_report()
+
+
+@router.get("/status")
+def get_status():
+    from app.clock import data_through
+    from app.refresh import read_state
+    state = read_state()
+    latest = data_through()
+    checked = state.get("cmpd_at")
+    return {
+        "data_through": str(latest) if latest else None,
+        "last_checked": datetime.utcfromtimestamp(checked).isoformat() + "Z" if checked else None,
+        "last_added": state.get("cmpd_added"),
+    }
 
 
 @router.get("/briefing")

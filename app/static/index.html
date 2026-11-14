@@ -135,7 +135,7 @@
 
 <div class="header">
   <h1>PRECOG</h1>
-  <span class="status" id="status"><span class="dot yellow"></span>Initializing...</span>
+  <span class="status"><a href="/accuracy" style="color:#60a5fa;text-decoration:none;font-weight:600;margin-right:16px;">Accuracy record</a><span id="dataThrough" style="margin-right:16px;"></span><span id="status"><span class="dot yellow"></span>Initializing...</span></span>
 </div>
 
 <div class="controls">
@@ -1641,7 +1641,18 @@ async function runSocialIngest() {
   } catch(e) { console.error('runSocialIngest', e); toast('Social ingest error'); }
 }
 
+async function loadStatus() {
+  try {
+    const s = await api('status');
+    if (!s.data_through) return;
+    const through = new Date(s.data_through + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const checked = s.last_checked ? ' · checked ' + new Date(s.last_checked).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    document.getElementById('dataThrough').textContent = `CMPD data through ${through}${checked}`;
+  } catch (e) { console.error('loadStatus', e); }
+}
+
 async function init() {
+  loadStatus();
   await Promise.all([loadNpaMeta(), loadAreaBoundaries()]);
   await loadTypes();
   setRole(currentRole);

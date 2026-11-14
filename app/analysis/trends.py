@@ -2,12 +2,13 @@ import numpy as np
 from sqlalchemy import func, extract
 from datetime import datetime, timedelta
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def daily_counts(days_back: int = 90, nibrs_code: str = None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             func.date(Incident.date_reported).label("day"),
             func.count().label("count"),
@@ -23,7 +24,7 @@ def daily_counts(days_back: int = 90, nibrs_code: str = None):
 def hourly_pattern(days_back: int = 90, nibrs_code: str = None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             extract("hour", Incident.date_reported).label("hour"),
             func.count().label("count"),
@@ -43,7 +44,7 @@ def hourly_pattern(days_back: int = 90, nibrs_code: str = None):
 def day_of_week_pattern(days_back: int = 90, nibrs_code: str = None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             extract("dow", Incident.date_reported).label("dow"),
             func.count().label("count"),

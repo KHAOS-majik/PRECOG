@@ -10,3 +10,5 @@ precog.db-journal
 *.joblib
 *.meta
 .pytest_cache/
+precog.db-shm
+precog.db-wal

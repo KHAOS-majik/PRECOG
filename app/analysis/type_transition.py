@@ -3,6 +3,7 @@ from collections import defaultdict
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
 from app.analysis.model_cache import get_or_train
+from app.clock import ref_now
 
 PROPERTY_CODES = {"23F", "23H", "23C", "23G", "23D", "240", "220", "290", "250"}
 VIOLENT_CODES = {"13A", "13B", "120", "09A", "09B", "11A", "64A"}
@@ -26,7 +27,7 @@ def compute_transitions(days_back=365, window_days=30):
     def build():
         session = SessionLocal()
         try:
-            cutoff = datetime.utcnow() - timedelta(days=days_back)
+            cutoff = ref_now() - timedelta(days=days_back)
             rows = (
                 session.query(
                     Incident.address,
@@ -94,7 +95,7 @@ def find_escalation_locations(days_back=180, window_days=30, min_property=2):
     """Find locations where property crime preceded violent crime."""
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
 
         rows = (
             session.query(
@@ -157,7 +158,7 @@ def find_escalation_locations(days_back=180, window_days=30, min_property=2):
         escalations.sort(key=lambda e: e["property_count"], reverse=True)
 
         at_risk = []
-        now = datetime.utcnow()
+        now = ref_now()
         for addr, incidents in by_address.items():
             recent_property = [
                 i for i in incidents

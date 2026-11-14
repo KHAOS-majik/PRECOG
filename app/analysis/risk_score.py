@@ -5,6 +5,7 @@ from collections import defaultdict
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
 from app.analysis.model_cache import get_or_train
+from app.clock import ref_now
 
 _NPA_CENTERS = {"data": {}, "ts": 0}
 _NPA_CENTERS_TTL = 3600
@@ -74,7 +75,7 @@ def _cluster_scores(nibrs_code=None, days_back=90):
 def _repeat_scores(days_back=90, nibrs_code=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             Incident.npa,
             Incident.address,
@@ -110,7 +111,7 @@ def _311_scores(days_back=90):
 def _recency_scores(nibrs_code=None, days_back=90):
     session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = ref_now()
         cutoff = now - timedelta(days=max(days_back, 30))
         q = session.query(
             Incident.npa,

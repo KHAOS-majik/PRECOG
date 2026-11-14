@@ -3,12 +3,13 @@ from sklearn.cluster import DBSCAN
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def find_clusters(days_back=30, eps_km=0.3, min_samples=5, nibrs_code=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(
             Incident.latitude, Incident.longitude,
             Incident.nibrs_code, Incident.address, Incident.date_reported,

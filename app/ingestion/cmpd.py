@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from sqlalchemy import func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from app.models.incident import Incident, SessionLocal, init_db, engine
 
@@ -18,7 +19,7 @@ def fetch_incidents(limit=1000, offset=0, where="1=1"):
         "outFields": "*",
         "resultRecordCount": limit,
         "resultOffset": offset,
-        "orderByFields": "DATE_REPORTED DESC",
+        "orderByFields": "DATE_REPORTED DESC, OBJECTID DESC",
         "f": "json"
     }
     response = requests.get(CMPD_ENDPOINT, params=params, timeout=60)
@@ -92,81 +93,72 @@ def save_incidents(df):
         })
     if not records:
         return 0
+    stmt = sqlite_insert(Incident)
+    # CMPD revises records after publication (clearance, division), so refresh existing rows.
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["incident_report_id"],
+        set_={k: stmt.excluded[k] for k in records[0] if k != "incident_report_id"},
+    )
     with engine.begin() as conn:
-        stmt = sqlite_insert(Incident).values(records)
-        stmt = stmt.on_conflict_do_nothing(index_elements=["incident_report_id"])
-        result = conn.execute(stmt)
-        return result.rowcount
+        conn.execute(stmt, records)
+    return len(records)
+
+
+def _count_incidents():
+    with engine.connect() as conn:
+        return conn.execute(select(func.count()).select_from(Incident)).scalar() or 0
+
+
+def _ingest_where(where, label):
+    init_db()
+    total_available = get_record_count(where)
+    print(f"[{datetime.now()}] {label}: {total_available} records to fetch")
+    before = _count_incidents()
+    offset = 0
+    while offset < total_available:
+        raw = fetch_incidents(limit=min(BATCH_SIZE, total_available - offset), offset=offset, where=where)
+        if not raw:
+            break
+        save_incidents(normalize_incidents(raw))
+        offset += len(raw)
+        if offset % 10000 == 0 or offset >= total_available:
+            print(f"  Progress: {offset}/{total_available}")
+    added = _count_incidents() - before
+    print(f"[{datetime.now()}] {label} done: {offset} fetched, {added} new")
+    return {"added": added, "skipped": offset - added, "total_fetched": offset}
+
+
+def ingest_recent(days=45):
+    """Pull everything reported in the last `days` days, refreshing rows already stored."""
+    cutoff = (datetime.utcnow() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    return _ingest_where(f"DATE_REPORTED >= TIMESTAMP '{cutoff}'", f"Recent ingest ({days}d)")
 
 
 def ingest(limit=1000):
+    """Pull the newest `limit` records."""
     init_db()
-    where = "1=1"
-    total_available = get_record_count(where)
-    target = min(limit, total_available)
-    print(f"[{datetime.now()}] {total_available} records available, fetching {target}...")
-
-    total_added = 0
-    total_skipped = 0
+    before = _count_incidents()
     offset = 0
-
-    while offset < target:
-        batch = min(BATCH_SIZE, target - offset)
-        try:
-            raw = fetch_incidents(limit=batch, offset=offset, where=where)
-        except Exception as e:
-            print(f"  Error at offset {offset}: {e}")
-            break
+    while offset < limit:
+        raw = fetch_incidents(limit=min(BATCH_SIZE, limit - offset), offset=offset)
         if not raw:
             break
-        df = normalize_incidents(raw)
-        saved = save_incidents(df)
-        total_added += saved
-        total_skipped += len(df) - saved
+        save_incidents(normalize_incidents(raw))
         offset += len(raw)
-        print(f"  Progress: {offset}/{target} fetched, {total_added} added, {total_skipped} skipped")
-
-    print(f"[{datetime.now()}] Done: {total_added} added, {total_skipped} skipped")
-    return {"added": total_added, "skipped": total_skipped}
+    added = _count_incidents() - before
+    return {"added": added, "skipped": offset - added, "total_fetched": offset}
 
 
 def ingest_historical(years_back=5):
-    init_db()
-    cutoff = datetime.utcnow() - timedelta(days=years_back * 365)
-    cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
-    where = f"DATE_REPORTED >= TIMESTAMP '{cutoff_str}'"
-
-    total_available = get_record_count(where)
-    print(f"[{datetime.now()}] Historical ingest: {total_available} records in last {years_back} years")
-
-    total_added = 0
-    total_skipped = 0
-    offset = 0
-
-    while offset < total_available:
-        batch = min(BATCH_SIZE, total_available - offset)
-        try:
-            raw = fetch_incidents(limit=batch, offset=offset, where=where)
-        except Exception as e:
-            print(f"  Error at offset {offset}: {e}")
-            break
-        if not raw:
-            break
-        df = normalize_incidents(raw)
-        saved = save_incidents(df)
-        total_added += saved
-        total_skipped += len(df) - saved
-        offset += len(raw)
-        if offset % 10000 == 0 or offset >= total_available:
-            print(f"  Progress: {offset}/{total_available} ({offset*100//total_available}%) — {total_added} added")
-
-    print(f"[{datetime.now()}] Done: {total_added} added, {total_skipped} skipped")
-    return {"added": total_added, "skipped": total_skipped, "total_fetched": offset}
+    cutoff = (datetime.utcnow() - timedelta(days=years_back * 365)).strftime("%Y-%m-%d %H:%M:%S")
+    return _ingest_where(f"DATE_REPORTED >= TIMESTAMP '{cutoff}'", f"Historical ingest ({years_back}y)")
 
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "--historical":
+    if len(sys.argv) > 1 and sys.argv[1] == "--recent":
+        result = ingest_recent(days=int(sys.argv[2]) if len(sys.argv) > 2 else 45)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--historical":
         years = int(sys.argv[2]) if len(sys.argv) > 2 else 5
         result = ingest_historical(years_back=years)
     else:

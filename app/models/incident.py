@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, DateTime, Integer, Index, create_engine
+from sqlalchemy import Column, String, Float, DateTime, Integer, Index, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 import os
 from dotenv import load_dotenv
@@ -8,6 +8,15 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./precog.db")
 engine = create_engine(DATABASE_URL, echo=False)
 SessionLocal = sessionmaker(bind=engine)
+
+if engine.dialect.name == "sqlite":
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):
+        # WAL lets the hourly refresh write while requests keep reading.
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.close()
 
 class Base(DeclarativeBase):
     pass

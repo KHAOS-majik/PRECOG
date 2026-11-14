@@ -2,6 +2,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 CHARLOTTE_POIS = {
     "schools": [
@@ -73,7 +74,7 @@ def _haversine_km(lat1, lon1, lat2, lon2):
 def proximity_analysis(days_back=90, radius_km=0.5, nibrs_code=None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(Incident.latitude, Incident.longitude).filter(
             Incident.latitude.isnot(None),
             Incident.longitude.isnot(None),

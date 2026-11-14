@@ -3,12 +3,13 @@ from sklearn.neighbors import KernelDensity
 from sqlalchemy import func
 from datetime import datetime, timedelta
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def get_incident_coords(days_back: int = 90, nibrs_code: str = None):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         q = session.query(Incident.latitude, Incident.longitude).filter(
             Incident.latitude.isnot(None),
             Incident.longitude.isnot(None),
@@ -71,7 +72,7 @@ def compute_hotspots(days_back: int = 90, nibrs_code: str = None, grid_size: int
 def get_top_hotspot_areas(days_back: int = 90, top_n: int = 10):
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         rows = (
             session.query(
                 Incident.npa,

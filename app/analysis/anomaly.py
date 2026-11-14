@@ -2,12 +2,13 @@ import numpy as np
 from datetime import datetime, timedelta
 from sqlalchemy import func
 from app.models.incident import Incident, SessionLocal
+from app.clock import ref_now
 
 
 def detect_anomalies(days_back=90, lookback_baseline=365, threshold_sigma=2.0, nibrs_code=None):
     session = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = ref_now()
         baseline_cutoff = now - timedelta(days=lookback_baseline)
         recent_cutoff = now - timedelta(days=days_back)
 

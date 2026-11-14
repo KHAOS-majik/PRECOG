@@ -4,6 +4,7 @@ from sqlalchemy import func
 import numpy as np
 from app.models.incident import Incident, SessionLocal
 from app.analysis.events import CHARLOTTE_VENUES
+from app.clock import ref_now
 
 MAJOR_HOLIDAYS = {
     "New Year's Day": (1, 1),
@@ -87,12 +88,12 @@ def get_event_impact(days_back=730):
     """Analyze historical crime impact around events and venues."""
     session = SessionLocal()
     try:
-        cutoff = datetime.utcnow() - timedelta(days=days_back)
+        cutoff = ref_now() - timedelta(days=days_back)
         results = []
 
         for name, (m, d) in MAJOR_HOLIDAYS.items():
             holiday_dates = []
-            for year in range(cutoff.year, datetime.utcnow().year + 1):
+            for year in range(cutoff.year, ref_now().year + 1):
                 try:
                     hd = date(year, m, d)
                 except ValueError:
